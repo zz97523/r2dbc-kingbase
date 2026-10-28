@@ -66,15 +66,6 @@ public final class CompositeFrontendMessage implements FrontendMessage, Frontend
     }
 
     @Override
-    public void dispose() {
-        for (DirectEncoder message : this.messages) {
-            if (message instanceof FrontendMessage) {
-                ((FrontendMessage) message).dispose();
-            }
-        }
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;

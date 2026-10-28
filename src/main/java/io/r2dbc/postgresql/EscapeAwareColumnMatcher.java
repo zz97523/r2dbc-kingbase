@@ -16,7 +16,7 @@
 
 package io.r2dbc.postgresql;
 
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.util.Collection;
 
@@ -26,7 +26,8 @@ import java.util.Collection;
  */
 final class EscapeAwareColumnMatcher {
 
-    public static @Nullable String findColumn(String name, Collection<String> names) {
+    @Nullable
+    public static String findColumn(String name, Collection<String> names) {
 
         for (String s : names) {
             if (matches(name, s)) {

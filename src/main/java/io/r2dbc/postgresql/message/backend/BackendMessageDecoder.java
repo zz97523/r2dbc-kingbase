@@ -69,8 +69,6 @@ public final class BackendMessageDecoder {
                 return ErrorResponse.decode(body);
             case FUNCTION_CALL_RESPONSE:
                 return FunctionCallResponse.decode(body);
-            case NEGOTIATE_PROTOCOL_VERSION:
-                return NegotiateProtocolVersion.decode(body);
             case NO_DATA:
                 return NoData.INSTANCE;
             case NOTICE_RESPONSE:
@@ -110,6 +108,8 @@ public final class BackendMessageDecoder {
                 return AuthenticationGSSContinue.decode(in);
             case MD5_PASSWORD:
                 return AuthenticationMD5Password.decode(in);
+            case MAC_ADDRESS:
+                return AuthenticationMacAddress.INSTANCE;
             case SCMC_CREDENTIAL:
                 return AuthenticationSCMCredential.INSTANCE;
             case SASL:
@@ -120,8 +120,6 @@ public final class BackendMessageDecoder {
                 return AuthenticationSASLFinal.decode(in);
             case SSPI:
                 return AuthenticationSSPI.INSTANCE;
-            case MAC_ADDRESS:
-                return AuthenticationMacAddress.INSTANCE;
             default:
                 throw new IllegalArgumentException(String.format("%s is not a supported authentication type", authenticationType));
         }
@@ -135,12 +133,12 @@ public final class BackendMessageDecoder {
         GSS(7),
         GSS_CONTINUE(8),
         MD5_PASSWORD(5),
+        MAC_ADDRESS(19),
         SCMC_CREDENTIAL(6),
         SASL(10),
         SASL_CONTINUE(11),
         SASL_FINAL(12),
-        SSPI(9),
-        MAC_ADDRESS(19);
+        SSPI(9);
 
         private final int discriminator;
 
@@ -175,7 +173,6 @@ public final class BackendMessageDecoder {
         EMPTY_QUERY_RESPONSE('I'),
         ERROR_RESPONSE('E'),
         FUNCTION_CALL_RESPONSE('V'),
-        NEGOTIATE_PROTOCOL_VERSION('v'),
         NO_DATA('n'),
         NOTICE_RESPONSE('N'),
         NOTIFICATION_RESPONSE('A'),

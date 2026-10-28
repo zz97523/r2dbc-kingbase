@@ -18,12 +18,10 @@ package io.r2dbc.postgresql.codec;
 
 import io.r2dbc.postgresql.api.PostgresqlConnection;
 import io.r2dbc.postgresql.util.Assert;
-import io.r2dbc.spi.Row;
-import io.r2dbc.spi.RowMetadata;
 import io.r2dbc.spi.Type;
-import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
 import java.util.Objects;
 import java.util.StringJoiner;
@@ -37,10 +35,8 @@ import java.util.regex.Pattern;
  */
 public class PostgresTypes {
 
-    public final static int NO_SUCH_TYPE = -1;
-
     // parameterized with %s for the comparator (=, IN), %s for the actual criteria value and %s for a potential LIMIT 1 statement
-    private static final String SELECT_PG_TYPE = "SELECT pg_type.oid, pg_type.* "
+    private static final String SELECT_PG_TYPE = "SELECT pg_type.oid, typarray, typname, typcategory "
         + "  FROM pg_catalog.pg_type "
         + "  LEFT "
         + "  JOIN (select ns.oid as nspoid, ns.nspname, r.r "
@@ -51,6 +47,7 @@ public class PostgresTypes {
         + "       ) as sp "
         + "    ON sp.nspoid = typnamespace "
         + " WHERE typname %s %s "
+        + "   AND (sp.r IS NOT NULL OR typnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'pg_catalog')) "
         + " ORDER BY sp.r, pg_type.oid DESC %s;";
 
     private final static Pattern TYPENAME = Pattern.compile("[a-zA-Z0-9_]+(?: [a-zA-Z0-9_]+)*");
@@ -69,8 +66,9 @@ public class PostgresTypes {
      * Lookup Postgres types by {@code typname}. Please note that {@code typname} inlined to use simple statements. Therefore, {@code typname} gets verified against {@link #TYPENAME} to prevent SQL
      * injection.
      *
-     * @param typeName the type name. Each word must comply with {@code [a-zA-Z0-9_]+}; single
-     *                 spaces are allowed for vendor types such as {@code int unsigned}
+     * @param typeName the type name. Each word must comply with {@code [a-zA-Z0-9_]+};
+     *                 single spaces are allowed between words for vendor types such as
+     *                 {@code int unsigned}
      * @return a mono emitting the {@link PostgresType} if found or {@link Mono#empty()}  if not found
      */
     public Mono<PostgresType> lookupType(String typeName) {
@@ -79,7 +77,13 @@ public class PostgresTypes {
         }
 
         return this.connection.createStatement(String.format(SELECT_PG_TYPE, "=", "'" + typeName + "'", "LIMIT 1")).execute()
-            .flatMap(it -> it.map(PostgresTypes::createType)).singleOrEmpty();
+            .flatMap(it -> it.map((row, rowMetadata) -> {
+
+                Long oid = row.get("oid", Long.class);
+                Long typarrayOid = row.get("typarray", Long.class);
+                return new PostgresType(PostgresqlObjectId.toInt(oid), oid.longValue(), PostgresqlObjectId.toInt(typarrayOid), typarrayOid, row.get("typname", String.class), row.get("typcategory",
+                    String.class));
+            })).singleOrEmpty();
     }
 
     public Flux<PostgresType> lookupTypes(Iterable<String> typeNames) {
@@ -102,18 +106,13 @@ public class PostgresTypes {
         }
 
         return this.connection.createStatement(String.format(SELECT_PG_TYPE, "IN", joiner, "")).execute()
-            .flatMap(it -> it.map(PostgresTypes::createType));
-    }
+            .flatMap(it -> it.map((row, rowMetadata) -> {
 
-    private static PostgresType createType(Row row, RowMetadata rowMetadata) {
-        Long oid = row.get("oid", Long.class);
-        String typname = row.get("typname", String.class);
-        String typcategory = row.get("typcategory", String.class);
-        Long typarrayOid = rowMetadata.contains("typarray") ? row.get("typarray", Long.class) : null;
-
-        long unsignedTyparray = typarrayOid != null ? typarrayOid : NO_SUCH_TYPE;
-        int typarray = typarrayOid != null ? PostgresqlObjectId.toInt(typarrayOid) : NO_SUCH_TYPE;
-        return new PostgresType(PostgresqlObjectId.toInt(oid), oid, typarray, unsignedTyparray, typname, typcategory);
+                Long oid = row.get("oid", Long.class);
+                Long typarrayOid = row.get("typarray", Long.class);
+                return new PostgresType(PostgresqlObjectId.toInt(oid), oid.longValue(), PostgresqlObjectId.toInt(typarrayOid), typarrayOid, row.get("typname", String.class), row.get("typcategory",
+                    String.class));
+            }));
     }
 
     public static class PostgresType implements Type, PostgresTypeIdentifier {
@@ -130,7 +129,8 @@ public class PostgresTypes {
 
         private final String category;
 
-        private final @Nullable PostgresqlObjectId objectId;
+        @Nullable
+        private final PostgresqlObjectId objectId;
 
         public PostgresType(int oid, long unsignedOid, int typarray, long unsignedTyparray, String name, String category) {
             this.oid = oid;

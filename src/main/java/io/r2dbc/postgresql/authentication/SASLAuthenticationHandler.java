@@ -1,11 +1,10 @@
 package io.r2dbc.postgresql.authentication;
 
 import com.ongres.scram.client.ScramClient;
-import com.ongres.scram.common.StringPreparation;
-import com.ongres.scram.common.exception.ScramException;
-import com.ongres.scram.common.util.TlsServerEndpoint;
-import io.r2dbc.postgresql.client.ChannelBindingMode;
-import io.r2dbc.postgresql.client.ConnectionContext;
+import com.ongres.scram.client.ScramSession;
+import com.ongres.scram.common.exception.ScramInvalidServerSignatureException;
+import com.ongres.scram.common.exception.ScramParseException;
+import com.ongres.scram.common.exception.ScramServerErrorException;
 import io.r2dbc.postgresql.message.backend.AuthenticationMessage;
 import io.r2dbc.postgresql.message.backend.AuthenticationSASL;
 import io.r2dbc.postgresql.message.backend.AuthenticationSASLContinue;
@@ -15,59 +14,32 @@ import io.r2dbc.postgresql.message.frontend.SASLInitialResponse;
 import io.r2dbc.postgresql.message.frontend.SASLResponse;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufferUtils;
-import io.r2dbc.spi.R2dbcPermissionDeniedException;
-import org.jspecify.annotations.Nullable;
 import reactor.core.Exceptions;
-import reactor.util.Logger;
-import reactor.util.Loggers;
+import reactor.util.annotation.Nullable;
 
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSession;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
+import static com.ongres.scram.client.ScramClient.ChannelBinding.NO;
+import static com.ongres.scram.common.stringprep.StringPreparations.NO_PREPARATION;
 
 public class SASLAuthenticationHandler implements AuthenticationHandler {
-
-    private static final Logger LOG = Loggers.getLogger(SASLAuthenticationHandler.class);
 
     private final CharSequence password;
 
     private final String username;
 
-    private final ConnectionContext context;
+    private ScramSession.ClientFinalProcessor clientFinalProcessor;
 
-    private final ChannelBindingMode channelBinding;
-
-    private ScramClient scramClient;
-
-    /**
-     * Create a new handler using the default {@link ChannelBindingMode#PREFER} channel binding mode.
-     *
-     * @param password the password to use for authentication
-     * @param username the username to use for authentication
-     * @param context  the connection context
-     * @throws IllegalArgumentException if {@code password} or {@code user} is {@code null}
-     */
-    public SASLAuthenticationHandler(CharSequence password, String username, ConnectionContext context) {
-        this(password, username, context, ChannelBindingMode.PREFER);
-    }
+    private ScramSession scramSession;
 
     /**
      * Create a new handler.
      *
-     * @param password       the password to use for authentication
-     * @param username       the username to use for authentication
-     * @param context        the connection context
-     * @param channelBinding the channel binding preference
-     * @throws IllegalArgumentException if {@code password}, {@code user}, {@code context} or {@code channelBinding} is {@code null}
-     * @since 1.1.2
+     * @param password the password to use for authentication
+     * @param username the username to use for authentication
+     * @throws IllegalArgumentException if {@code password} or {@code user} is {@code null}
      */
-    public SASLAuthenticationHandler(CharSequence password, String username, ConnectionContext context, ChannelBindingMode channelBinding) {
+    public SASLAuthenticationHandler(CharSequence password, String username) {
         this.password = Assert.requireNonNull(password, "password must not be null");
         this.username = Assert.requireNonNull(username, "username must not be null");
-        this.context = Assert.requireNonNull(context, "context must not be null");
-        this.channelBinding = Assert.requireNonNull(channelBinding, "channelBinding must not be null");
     }
 
     /**
@@ -101,72 +73,35 @@ public class SASLAuthenticationHandler implements AuthenticationHandler {
     }
 
     private FrontendMessage handleAuthenticationSASL(AuthenticationSASL message) {
+        ScramClient scramClient = ScramClient
+            .channelBinding(NO)
+            .stringPreparation(NO_PREPARATION)
+            .selectMechanismBasedOnServerAdvertised(message.getAuthenticationMechanisms().toArray(new String[0]))
+            .setup();
 
-        char[] password = new char[this.password.length()];
-        for (int i = 0; i < password.length; i++) {
-            password[i] = this.password.charAt(i);
-        }
+        this.scramSession = scramClient.scramSession(this.username);
 
-        ScramClient.FinalBuildStage builder = ScramClient.builder()
-            .advertisedMechanisms(message.getAuthenticationMechanisms())
-            .username(this.username) // ignored by the server, use startup message
-            .password(password)
-            .stringPreparation(StringPreparation.POSTGRESQL_PREPARATION);
-
-        SSLSession sslSession = this.context.getSslSession();
-        boolean sslEstablished = sslSession != null && sslSession.isValid();
-
-        if (this.channelBinding == ChannelBindingMode.REQUIRE && !sslEstablished) {
-            throw new R2dbcPermissionDeniedException("Channel binding is required (channelBinding=require) but the connection is not using SSL");
-        }
-
-        if (this.channelBinding != ChannelBindingMode.DISABLE && sslEstablished) {
-            builder.channelBinding(TlsServerEndpoint.TLS_SERVER_END_POINT, extractSslEndpoint(sslSession));
-        }
-
-        this.scramClient = builder.build();
-
-        // The SCRAM library silently downgrades to a non-bound mechanism if the server does not advertise SCRAM-SHA-256-PLUS (or no channel binding data is available). Reject this when channel
-        // binding was required to prevent a man-in-the-middle from stripping the -PLUS mechanism.
-        if (this.channelBinding == ChannelBindingMode.REQUIRE && !this.scramClient.getScramMechanism().isPlus()) {
-            throw new R2dbcPermissionDeniedException("Channel binding is required (channelBinding=require) but the server did not offer a channel-binding SCRAM mechanism (SCRAM-SHA-256-PLUS)");
-        }
-
-        return new SASLInitialResponse(ByteBufferUtils.encode(this.scramClient.clientFirstMessage().toString()), this.scramClient.getScramMechanism().getName());
-    }
-
-    private static byte[] extractSslEndpoint(SSLSession sslSession) {
-        try {
-            Certificate[] certificates = sslSession.getPeerCertificates();
-            if (certificates != null && certificates.length > 0) {
-                Certificate peerCert = certificates[0]; // First certificate is the peer's certificate
-                if (peerCert instanceof X509Certificate) {
-                    X509Certificate cert = (X509Certificate) peerCert;
-                    return TlsServerEndpoint.getChannelBindingData(cert);
-
-                }
-            }
-        } catch (CertificateException | SSLException e) {
-            LOG.debug("Cannot extract X509Certificate from SSL session", e);
-        }
-        return new byte[0];
+        return new SASLInitialResponse(ByteBufferUtils.encode(this.scramSession.clientFirstMessage()), scramClient.getScramMechanism().getName());
     }
 
     private FrontendMessage handleAuthenticationSASLContinue(AuthenticationSASLContinue message) {
         try {
-            this.scramClient.serverFirstMessage(ByteBufferUtils.decode(message.getData()));
+            this.clientFinalProcessor = this.scramSession
+                .receiveServerFirstMessage(ByteBufferUtils.decode(message.getData()))
+                .clientFinalProcessor(this.password.toString());
 
-            return new SASLResponse(ByteBufferUtils.encode(this.scramClient.clientFinalMessage().toString()));
-        } catch (ScramException e) {
+            return new SASLResponse(ByteBufferUtils.encode(clientFinalProcessor.clientFinalMessage()));
+        } catch (ScramParseException e) {
             throw Exceptions.propagate(e);
         }
     }
 
-    private @Nullable FrontendMessage handleAuthenticationSASLFinal(AuthenticationSASLFinal message) {
+    @Nullable
+    private FrontendMessage handleAuthenticationSASLFinal(AuthenticationSASLFinal message) {
         try {
-            this.scramClient.serverFinalMessage(ByteBufferUtils.decode(message.getAdditionalData()));
+            this.clientFinalProcessor.receiveServerFinalMessage(ByteBufferUtils.decode(message.getAdditionalData()));
             return null;
-        } catch (ScramException e) {
+        } catch (ScramParseException | ScramInvalidServerSignatureException | ScramServerErrorException e) {
             throw Exceptions.propagate(e);
         }
     }

@@ -6,18 +6,30 @@
  * You may obtain a copy of the License at
  *
  *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.r2dbc.kingbase;
 
 import java.math.BigDecimal;
 
-/** Shared text conversion for Kingbase {@code money} values. */
+/**
+ * Shared text conversion for Kingbase {@code money} values.
+ */
 public final class KingbaseMoneyCodecSupport {
 
     private KingbaseMoneyCodecSupport() {
     }
 
+    /**
+     * Parse PostgreSQL/Kingbase money text while retaining decimal precision.
+     * Currency symbols and grouping separators are accepted.
+     */
     public static BigDecimal parse(String text) {
         String value = text.trim();
         boolean parentheses = value.startsWith("(") && value.endsWith(")");
@@ -38,6 +50,9 @@ public final class KingbaseMoneyCodecSupport {
         return parentheses ? result.abs().negate() : result;
     }
 
+    /**
+     * Format a supported R2DBC money value for the PostgreSQL text wire format.
+     */
     public static String format(Number value) {
         if (value instanceof BigDecimal) {
             return ((BigDecimal) value).toPlainString();

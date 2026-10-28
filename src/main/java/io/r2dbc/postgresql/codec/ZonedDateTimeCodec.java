@@ -20,7 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.time.ZonedDateTime;
 
@@ -30,7 +30,7 @@ import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIMESTAMPTZ_ARRAY;
 final class ZonedDateTimeCodec extends AbstractTemporalCodec<ZonedDateTime> implements ArrayCodecDelegate<ZonedDateTime> {
 
     ZonedDateTimeCodec(ByteBufAllocator byteBufAllocator) {
-        super(ZonedDateTime.class, byteBufAllocator, TIMESTAMPTZ, TIMESTAMPTZ_ARRAY, value -> PostgresqlDateTimeFormatter.toString(value.toOffsetDateTime()));
+        super(ZonedDateTime.class, byteBufAllocator, TIMESTAMPTZ, TIMESTAMPTZ_ARRAY, value -> value.toOffsetDateTime().toString());
     }
 
     @Override

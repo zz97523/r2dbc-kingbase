@@ -3,7 +3,15 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at https://www.apache.org/licenses/LICENSE-2.0
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.r2dbc.kingbase.oracle;
@@ -11,21 +19,22 @@ package io.r2dbc.kingbase.oracle;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
-import io.r2dbc.kingbase.KingbaseMoney;
-import io.r2dbc.kingbase.KingbaseMoneyCodecSupport;
-import io.r2dbc.kingbase.KingbaseXml;
 import io.r2dbc.postgresql.client.EncodedParameter;
+import io.r2dbc.postgresql.codec.ArrayCodec;
+import io.r2dbc.postgresql.codec.ArrayCodecDelegate;
 import io.r2dbc.postgresql.codec.Codec;
 import io.r2dbc.postgresql.codec.CodecMetadata;
-import io.r2dbc.postgresql.codec.KingbaseTypedArrayCodec;
 import io.r2dbc.postgresql.codec.PostgresTypeIdentifier;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.ByteBufUtils;
+import io.r2dbc.kingbase.KingbaseMoneyCodecSupport;
+import io.r2dbc.kingbase.KingbaseMoney;
+import io.r2dbc.kingbase.KingbaseXml;
 import io.r2dbc.spi.Blob;
 import io.r2dbc.spi.Clob;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
-import java.math.BigDecimal;
+import java.lang.reflect.Array;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -39,8 +48,6 @@ import java.util.List;
 import java.util.function.Function;
 
 import static io.r2dbc.kingbase.oracle.KingbaseOracleCodecSupport.encodeText;
-import static io.r2dbc.postgresql.client.EncodedParameter.NULL_VALUE;
-import static io.r2dbc.postgresql.message.Format.FORMAT_BINARY;
 import static io.r2dbc.postgresql.message.Format.FORMAT_TEXT;
 
 /** JDBC-parity codecs for Oracle-mode special values and their SQL arrays. */
@@ -64,56 +71,79 @@ final class KingbaseOracleSpecialCodecs {
         codecs.add(generic);
 
         addArray(codecs, allocator, typeOids, "xml", xml, String.class,
-            KingbaseTypedArrayCodec::escapeArrayElement, true);
-        addArray(codecs, allocator, typeOids, "money", cast(money), Double.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toString()), true);
+            ArrayCodec::escapeArrayElement, false);
+
+        addArray(codecs, allocator, typeOids, "money", (Codec) money, Double.class,
+            value -> ArrayCodec.escapeArrayElement(value.toString()), false);
 
         KingbaseOracleTemporalCodecs.DurationCodec duration =
             new KingbaseOracleTemporalCodecs.DurationCodec(allocator, typeOids);
         addArray(codecs, allocator, typeOids, "dsinterval", duration, Duration.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(
+            value -> ArrayCodec.escapeArrayElement(
                 KingbaseOracleTemporalCodecs.DurationCodec.formatInterval(value)), true);
         addArray(codecs, allocator, typeOids, "intervalds", duration, Duration.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(
+            value -> ArrayCodec.escapeArrayElement(
                 KingbaseOracleTemporalCodecs.DurationCodec.formatInterval(value)), false);
 
         KingbaseOracleTemporalCodecs.PeriodCodec period =
             new KingbaseOracleTemporalCodecs.PeriodCodec(allocator, typeOids);
         addArray(codecs, allocator, typeOids, "yminterval", period, Period.class,
-            KingbaseOracleSpecialCodecs::encodePeriod, true);
+            value -> {
+                long months = value.toTotalMonths();
+                long absolute = Math.abs(months);
+                return ArrayCodec.escapeArrayElement((months < 0 ? "-" : "")
+                    + (absolute / 12) + "-" + (absolute % 12));
+            }, true);
         addArray(codecs, allocator, typeOids, "intervalym", period, Period.class,
-            KingbaseOracleSpecialCodecs::encodePeriod, false);
+            value -> {
+                long months = value.toTotalMonths();
+                long absolute = Math.abs(months);
+                return ArrayCodec.escapeArrayElement((months < 0 ? "-" : "")
+                    + (absolute / 12) + "-" + (absolute % 12));
+            }, false);
 
         KingbaseOracleTemporalCodecs.LocalDateTimeCodec date =
             new KingbaseOracleTemporalCodecs.LocalDateTimeCodec(allocator, typeOids);
         addArray(codecs, allocator, typeOids, "date", date, LocalDateTime.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toString()), false);
+            value -> ArrayCodec.escapeArrayElement(value.toString()), false);
 
         KingbaseOracleTextBinaryCodecs.RowIdCodec rowId =
             new KingbaseOracleTextBinaryCodecs.RowIdCodec(allocator, typeOids);
         addArray(codecs, allocator, typeOids, "rowid", rowId, RowId.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toString()), true);
+            value -> ArrayCodec.escapeArrayElement(value.toString()), true);
         addArray(codecs, allocator, typeOids, "urowid", rowId, RowId.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toString()), false);
+            value -> ArrayCodec.escapeArrayElement(value.toString()), false);
 
         KingbaseOracleLobCodecs.ClobCodec clob =
             new KingbaseOracleLobCodecs.ClobCodec(allocator, typeOids);
         addArray(codecs, allocator, typeOids, "clob", clob, Clob.class,
-            value -> unsupported("Clob[] encoding requires materialized text values"), false);
+            value -> {
+                throw new UnsupportedOperationException("Clob[] encoding requires materialized text values");
+            }, false);
         addArray(codecs, allocator, typeOids, "nclob", clob, Clob.class,
-            value -> unsupported("Clob[] encoding requires materialized text values"), false);
+            value -> {
+                throw new UnsupportedOperationException("Clob[] encoding requires materialized text values");
+            }, false);
 
         KingbaseOracleLobCodecs.BlobCodec blob =
             new KingbaseOracleLobCodecs.BlobCodec(allocator, typeOids);
         addArray(codecs, allocator, typeOids, "blob", blob, Blob.class,
-            value -> unsupported("Blob[] encoding requires materialized binary values"), false);
+            value -> {
+                throw new UnsupportedOperationException("Blob[] encoding requires materialized binary values");
+            }, false);
 
         KingbaseOracleTextBinaryCodecs.ByteBufferCodec binary =
             new KingbaseOracleTextBinaryCodecs.ByteBufferCodec(allocator, typeOids);
         addArray(codecs, allocator, typeOids, "blob", binary, ByteBuffer.class,
-            KingbaseOracleSpecialCodecs::encodeByteBuffer, true);
+            value -> {
+                ByteBuffer copy = value.slice();
+                byte[] bytes = new byte[copy.remaining()];
+                copy.get(bytes);
+                return ArrayCodec.escapeArrayElement("\\x" + ByteBufUtil.hexDump(bytes));
+            }, true);
+
         addArray(codecs, allocator, typeOids, "cidr", cidr, InetAddress.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.getHostAddress()), false);
+            value -> ArrayCodec.escapeArrayElement(value.getHostAddress()), false);
 
         for (String typeName : typeOids.genericObjectTypeNames()) {
             int scalarOid = typeOids.oid(typeName);
@@ -133,29 +163,6 @@ final class KingbaseOracleSpecialCodecs {
         return codecs;
     }
 
-    @SuppressWarnings("unchecked")
-    private static Codec<Double> cast(MoneyCodec codec) {
-        return (Codec<Double>) (Codec<?>) codec;
-    }
-
-    private static String encodePeriod(Period value) {
-        long months = value.toTotalMonths();
-        long absolute = Math.abs(months);
-        return KingbaseTypedArrayCodec.escapeArrayElement((months < 0 ? "-" : "")
-            + (absolute / 12) + "-" + (absolute % 12));
-    }
-
-    private static String encodeByteBuffer(ByteBuffer value) {
-        ByteBuffer copy = value.slice();
-        byte[] bytes = new byte[copy.remaining()];
-        copy.get(bytes);
-        return KingbaseTypedArrayCodec.escapeArrayElement("\\x" + ByteBufUtil.hexDump(bytes));
-    }
-
-    private static String unsupported(String message) {
-        throw new UnsupportedOperationException(message);
-    }
-
     private static <T> void addArray(List<Codec<?>> codecs, ByteBufAllocator allocator,
                                      KingbaseOracleTypeOids typeOids, String typeName,
                                      Codec<T> scalarCodec, Class<T> componentType,
@@ -163,7 +170,7 @@ final class KingbaseOracleSpecialCodecs {
         int scalarOid = typeOids.oid(typeName);
         int arrayOid = typeOids.arrayOid(typeName);
         if (scalarOid > 0 && arrayOid > 0) {
-            codecs.add(new KingbaseTypedArrayCodec<>(allocator, scalarOid, arrayOid, scalarCodec,
+            codecs.add(new TypedArrayCodec<>(allocator, scalarOid, arrayOid, scalarCodec,
                 componentType, encoder, canEncode));
         }
     }
@@ -214,9 +221,9 @@ final class KingbaseOracleSpecialCodecs {
 
     private static final class XmlCodec extends DecodeOnlyCodec<String> {
 
-        private final ByteBufAllocator allocator;
-
         private final KingbaseOracleTypeOids typeOids;
+
+        private final ByteBufAllocator allocator;
 
         XmlCodec(ByteBufAllocator allocator, KingbaseOracleTypeOids typeOids) {
             super(String.class);
@@ -237,7 +244,7 @@ final class KingbaseOracleSpecialCodecs {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
             return Collections.singleton(identifier(this.typeOids.oid("xml")));
         }
 
@@ -265,15 +272,16 @@ final class KingbaseOracleSpecialCodecs {
 
         @Override
         public EncodedParameter encodeNull() {
-            return new EncodedParameter(FORMAT_BINARY, this.typeOids.oid("xml"), NULL_VALUE);
+            return new EncodedParameter(Format.FORMAT_BINARY, this.typeOids.oid("xml"),
+                io.r2dbc.postgresql.client.EncodedParameter.NULL_VALUE);
         }
     }
 
     private static final class MoneyCodec extends DecodeOnlyCodec<Object> {
 
-        private final ByteBufAllocator allocator;
-
         private final KingbaseOracleTypeOids typeOids;
+
+        private final ByteBufAllocator allocator;
 
         MoneyCodec(ByteBufAllocator allocator, KingbaseOracleTypeOids typeOids) {
             super(Object.class);
@@ -290,7 +298,7 @@ final class KingbaseOracleSpecialCodecs {
         public boolean canDecode(int dataType, Format format, Class<?> type) {
             return format == FORMAT_TEXT && this.typeOids.isMoney(dataType)
                 && (type == Object.class || type == Double.class || type == Double.TYPE
-                || type == BigDecimal.class);
+                || type == java.math.BigDecimal.class);
         }
 
         @Override
@@ -299,12 +307,12 @@ final class KingbaseOracleSpecialCodecs {
             if (buffer == null) {
                 return null;
             }
-            BigDecimal value = KingbaseMoneyCodecSupport.parse(ByteBufUtils.decode(buffer));
-            return type == BigDecimal.class ? value : value.doubleValue();
+            java.math.BigDecimal value = KingbaseMoneyCodecSupport.parse(ByteBufUtils.decode(buffer));
+            return type == java.math.BigDecimal.class ? value : value.doubleValue();
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
             return Collections.singleton(identifier(this.typeOids.oid("money")));
         }
 
@@ -326,12 +334,14 @@ final class KingbaseOracleSpecialCodecs {
         @Override
         public EncodedParameter encode(Object value, int dataType) {
             int oid = dataType > 0 ? dataType : this.typeOids.oid("money");
-            return encodeText(this.allocator, oid, KingbaseMoneyCodecSupport.format((Number) value));
+            return encodeText(this.allocator, oid,
+                KingbaseMoneyCodecSupport.format((Number) value));
         }
 
         @Override
         public EncodedParameter encodeNull() {
-            return new EncodedParameter(FORMAT_BINARY, this.typeOids.oid("money"), NULL_VALUE);
+            return new EncodedParameter(Format.FORMAT_BINARY, this.typeOids.oid("money"),
+                io.r2dbc.postgresql.client.EncodedParameter.NULL_VALUE);
         }
     }
 
@@ -366,7 +376,7 @@ final class KingbaseOracleSpecialCodecs {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
             return Collections.singleton(identifier(this.typeOids.oid("cidr")));
         }
     }
@@ -393,7 +403,7 @@ final class KingbaseOracleSpecialCodecs {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
             List<PostgresTypeIdentifier> identifiers = new ArrayList<>();
             for (Integer oid : this.typeOids.genericObjectOids()) {
                 identifiers.add(identifier(oid));
@@ -409,8 +419,12 @@ final class KingbaseOracleSpecialCodecs {
 
         @Override
         public boolean canEncode(Object value) {
-            return value instanceof KingbaseOracleObject
-                && this.typeOids.oid(((KingbaseOracleObject) value).getTypeName()) > 0;
+            if (!(value instanceof KingbaseOracleObject)) {
+                return false;
+            }
+            KingbaseOracleObject object = (KingbaseOracleObject) value;
+            return !"bfile".equals(object.getTypeName())
+                && this.typeOids.oid(object.getTypeName()) > 0;
         }
 
         @Override
@@ -421,8 +435,10 @@ final class KingbaseOracleSpecialCodecs {
         @Override
         public KingbaseOracleObject decode(@Nullable ByteBuf buffer, int dataType, Format format,
                                            Class<? extends KingbaseOracleObject> type) {
-            return buffer == null ? null
-                : new KingbaseOracleObject(this.typeOids.name(dataType), ByteBufUtils.decode(buffer));
+            if (buffer == null) {
+                return null;
+            }
+            return new KingbaseOracleObject(this.typeOids.name(dataType), ByteBufUtils.decode(buffer));
         }
 
         @Override
@@ -471,7 +487,7 @@ final class KingbaseOracleSpecialCodecs {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
             List<PostgresTypeIdentifier> identifiers = new ArrayList<>();
             for (Integer oid : this.typeOids.compositeOids()) {
                 identifiers.add(identifier(oid));
@@ -499,8 +515,10 @@ final class KingbaseOracleSpecialCodecs {
         @Override
         public KingbaseOracleStruct decode(@Nullable ByteBuf buffer, int dataType, Format format,
                                            Class<? extends KingbaseOracleStruct> type) {
-            return buffer == null ? null
-                : KingbaseOracleStruct.decode(this.typeOids.name(dataType), ByteBufUtils.decode(buffer));
+            if (buffer == null) {
+                return null;
+            }
+            return KingbaseOracleStruct.decode(this.typeOids.name(dataType), ByteBufUtils.decode(buffer));
         }
 
         @Override
@@ -523,24 +541,61 @@ final class KingbaseOracleSpecialCodecs {
         }
     }
 
-    private static final class GenericObjectArrayCodec
-        extends KingbaseTypedArrayCodec<KingbaseOracleObject> {
+    private static class TypedArrayCodec<T> extends ArrayCodec<T> {
+
+        private final boolean encodingEnabled;
+
+        private final Class<?> arrayType;
+
+        TypedArrayCodec(ByteBufAllocator allocator, int scalarOid, int arrayOid, Codec<T> scalarCodec,
+                        Class<T> componentType, Function<T, String> encoder, boolean encodingEnabled) {
+            super(allocator, identifier(arrayOid),
+                new ScalarArrayDelegate<>(scalarOid, arrayOid, scalarCodec, componentType, encoder),
+                componentType);
+            this.encodingEnabled = encodingEnabled;
+            this.arrayType = Array.newInstance(componentType, 0).getClass();
+        }
+
+        @Override
+        public Class<?> type() {
+            return this.arrayType;
+        }
+
+        @Override
+        public boolean canEncode(Object value) {
+            return this.encodingEnabled && super.canEncode(value);
+        }
+
+        @Override
+        public boolean canEncodeNull(Class<?> type) {
+            return this.encodingEnabled && super.canEncodeNull(type);
+        }
+    }
+
+    private static final class GenericObjectArrayCodec extends TypedArrayCodec<KingbaseOracleObject> {
 
         private final String typeName;
 
-        GenericObjectArrayCodec(ByteBufAllocator allocator, String typeName, int scalarOid,
-                                int arrayOid, Codec<KingbaseOracleObject> scalarCodec) {
+        GenericObjectArrayCodec(ByteBufAllocator allocator, String typeName, int scalarOid, int arrayOid,
+                                Codec<KingbaseOracleObject> scalarCodec) {
             super(allocator, scalarOid, arrayOid, scalarCodec, KingbaseOracleObject.class,
-                value -> KingbaseTypedArrayCodec.escapeArrayElement(value.getValue()), true);
+                value -> ArrayCodec.escapeArrayElement(value.getValue()), true);
             this.typeName = typeName;
         }
 
         @Override
         public boolean canEncode(Object value) {
-            if (!super.canEncode(value)) {
+            if (!(value instanceof KingbaseOracleObject[])) {
                 return false;
             }
-            for (KingbaseOracleObject item : (KingbaseOracleObject[]) value) {
+            if ("bfile".equals(this.typeName)) {
+                return false;
+            }
+            KingbaseOracleObject[] values = (KingbaseOracleObject[]) value;
+            if (values.length == 0) {
+                return false;
+            }
+            for (KingbaseOracleObject item : values) {
                 if (item != null && !this.typeName.equals(item.getTypeName())) {
                     return false;
                 }
@@ -554,23 +609,27 @@ final class KingbaseOracleSpecialCodecs {
         }
     }
 
-    private static final class StructArrayCodec extends KingbaseTypedArrayCodec<KingbaseOracleStruct> {
+    private static final class StructArrayCodec extends TypedArrayCodec<KingbaseOracleStruct> {
 
         private final String typeName;
 
         StructArrayCodec(ByteBufAllocator allocator, String typeName, int scalarOid, int arrayOid,
                          Codec<KingbaseOracleStruct> scalarCodec) {
             super(allocator, scalarOid, arrayOid, scalarCodec, KingbaseOracleStruct.class,
-                value -> KingbaseTypedArrayCodec.escapeArrayElement(value.getValue()), true);
+                value -> ArrayCodec.escapeArrayElement(value.getValue()), true);
             this.typeName = typeName;
         }
 
         @Override
         public boolean canEncode(Object value) {
-            if (!super.canEncode(value)) {
+            if (!(value instanceof KingbaseOracleStruct[])) {
                 return false;
             }
-            for (KingbaseOracleStruct item : (KingbaseOracleStruct[]) value) {
+            KingbaseOracleStruct[] values = (KingbaseOracleStruct[]) value;
+            if (values.length == 0) {
+                return false;
+            }
+            for (KingbaseOracleStruct item : values) {
                 if (item != null && !this.typeName.equals(item.getTypeName())) {
                     return false;
                 }
@@ -581,6 +640,54 @@ final class KingbaseOracleSpecialCodecs {
         @Override
         public boolean canEncodeNull(Class<?> type) {
             return false;
+        }
+    }
+
+    private static final class ScalarArrayDelegate<T> implements ArrayCodecDelegate<T> {
+
+        private final Class<T> componentType;
+
+        private final Function<T, String> encoder;
+
+        private final int scalarOid;
+
+        private final int arrayOid;
+
+        private final Codec<T> scalarCodec;
+
+        ScalarArrayDelegate(int scalarOid, int arrayOid, Codec<T> scalarCodec,
+                            Class<T> componentType, Function<T, String> encoder) {
+            this.scalarOid = scalarOid;
+            this.arrayOid = arrayOid;
+            this.scalarCodec = scalarCodec;
+            this.componentType = componentType;
+            this.encoder = encoder;
+        }
+
+        @Override
+        public Class<?> type() {
+            return this.componentType;
+        }
+
+        @Override
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Collections.singleton(identifier(this.scalarOid));
+        }
+
+        @Override
+        public String encodeToText(T value) {
+            return this.encoder.apply(value);
+        }
+
+        @Override
+        public PostgresTypeIdentifier getArrayDataType() {
+            return identifier(this.arrayOid);
+        }
+
+        @Override
+        public T decode(ByteBuf buffer, PostgresTypeIdentifier dataType, Format format,
+                        Class<? extends T> type) {
+            return this.scalarCodec.decode(buffer, this.scalarOid, format, type);
         }
     }
 

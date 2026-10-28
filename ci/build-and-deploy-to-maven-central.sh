@@ -23,7 +23,7 @@ if [[ $VERSION =~ [^(\d+\.)+(RC(\d+)|M(\d+)|RELEASE)$] ]] ; then
   #
   # Stage on Maven Central
   #
-  echo "Staging $VERSION to Central Portal"
+  echo "Staging $VERSION to Maven Central"
 
   ./mvnw \
       -s settings.xml \

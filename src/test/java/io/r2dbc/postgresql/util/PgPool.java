@@ -52,7 +52,7 @@ public final class PgPool implements AutoCloseable {
     }
 
     public String getHost() {
-        return this.container.getHost();
+        return this.container.getContainerIpAddress();
     }
 
     public int getPort() {

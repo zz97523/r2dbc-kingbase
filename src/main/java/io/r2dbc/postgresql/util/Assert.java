@@ -16,7 +16,7 @@
 
 package io.r2dbc.postgresql.util;
 
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.io.File;
 

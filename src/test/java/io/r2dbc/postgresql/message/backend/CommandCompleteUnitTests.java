@@ -29,7 +29,7 @@ final class CommandCompleteUnitTests {
 
     @Test
     void constructorNoCommand() {
-        assertThatIllegalArgumentException().isThrownBy(() -> new CommandComplete(null, 100, 200L))
+        assertThatIllegalArgumentException().isThrownBy(() -> new CommandComplete(null, 100, 200))
             .withMessage("command must not be null");
     }
 
@@ -42,15 +42,7 @@ final class CommandCompleteUnitTests {
 
                 return buffer;
             })
-            .isEqualTo(new CommandComplete("COPY", null, 100L));
-        assertThat(CommandComplete.class)
-            .decoded(buffer -> {
-                buffer.writeCharSequence("COPY 4294967294", UTF_8);
-                buffer.writeByte(0);
-
-                return buffer;
-            })
-            .isEqualTo(new CommandComplete("COPY", null, 4294967294L));
+            .isEqualTo(new CommandComplete("COPY", null, 100));
     }
 
     @Test
@@ -62,15 +54,7 @@ final class CommandCompleteUnitTests {
 
                 return buffer;
             })
-            .isEqualTo(new CommandComplete("DELETE", null, 100L));
-        assertThat(CommandComplete.class)
-            .decoded(buffer -> {
-                buffer.writeCharSequence("DELETE 4294967294", UTF_8);
-                buffer.writeByte(0);
-
-                return buffer;
-            })
-            .isEqualTo(new CommandComplete("DELETE", null, 4294967294L));
+            .isEqualTo(new CommandComplete("DELETE", null, 100));
     }
 
     @Test
@@ -82,15 +66,7 @@ final class CommandCompleteUnitTests {
 
                 return buffer;
             })
-            .isEqualTo(new CommandComplete("FETCH", null, 100L));
-        assertThat(CommandComplete.class)
-            .decoded(buffer -> {
-                buffer.writeCharSequence("FETCH 4294967294", UTF_8);
-                buffer.writeByte(0);
-
-                return buffer;
-            })
-            .isEqualTo(new CommandComplete("FETCH", null, 4294967294L));
+            .isEqualTo(new CommandComplete("FETCH", null, 100));
     }
 
     @Test
@@ -102,35 +78,7 @@ final class CommandCompleteUnitTests {
 
                 return buffer;
             })
-            .isEqualTo(new CommandComplete("INSERT", 100, 200L));
-        assertThat(CommandComplete.class)
-            .decoded(buffer -> {
-                buffer.writeCharSequence("INSERT 100 4294967294", UTF_8);
-                buffer.writeByte(0);
-
-                return buffer;
-            })
-            .isEqualTo(new CommandComplete("INSERT", 100, 4294967294L));
-    }
-
-    @Test
-    void decodeMerge() {
-        assertThat(CommandComplete.class)
-            .decoded(buffer -> {
-                buffer.writeCharSequence("MERGE 100", UTF_8);
-                buffer.writeByte(0);
-
-                return buffer;
-            })
-            .isEqualTo(new CommandComplete("MERGE", null, 100L));
-        assertThat(CommandComplete.class)
-            .decoded(buffer -> {
-                buffer.writeCharSequence("MERGE 4294967294", UTF_8);
-                buffer.writeByte(0);
-
-                return buffer;
-            })
-            .isEqualTo(new CommandComplete("MERGE", null, 4294967294L));
+            .isEqualTo(new CommandComplete("INSERT", 100, 200));
     }
 
     @Test
@@ -142,15 +90,7 @@ final class CommandCompleteUnitTests {
 
                 return buffer;
             })
-            .isEqualTo(new CommandComplete("MOVE", null, 100L));
-        assertThat(CommandComplete.class)
-            .decoded(buffer -> {
-                buffer.writeCharSequence("MOVE 4294967294", UTF_8);
-                buffer.writeByte(0);
-
-                return buffer;
-            })
-            .isEqualTo(new CommandComplete("MOVE", null, 4294967294L));
+            .isEqualTo(new CommandComplete("MOVE", null, 100));
     }
 
     @Test
@@ -174,15 +114,7 @@ final class CommandCompleteUnitTests {
 
                 return buffer;
             })
-            .isEqualTo(new CommandComplete("SELECT", null, 100L));
-        assertThat(CommandComplete.class)
-            .decoded(buffer -> {
-                buffer.writeCharSequence("SELECT 4294967294", UTF_8);
-                buffer.writeByte(0);
-
-                return buffer;
-            })
-            .isEqualTo(new CommandComplete("SELECT", null, 4294967294L));
+            .isEqualTo(new CommandComplete("SELECT", null, 100));
         assertThat(CommandComplete.class)
             .decoded(buffer -> {
                 buffer.writeCharSequence("SELECT", UTF_8);
@@ -202,15 +134,7 @@ final class CommandCompleteUnitTests {
 
                 return buffer;
             })
-            .isEqualTo(new CommandComplete("UPDATE", null, 100L));
-        assertThat(CommandComplete.class)
-            .decoded(buffer -> {
-                buffer.writeCharSequence("UPDATE 4294967294", UTF_8);
-                buffer.writeByte(0);
-
-                return buffer;
-            })
-            .isEqualTo(new CommandComplete("UPDATE", null, 4294967294L));
+            .isEqualTo(new CommandComplete("UPDATE", null, 100));
     }
 
 }

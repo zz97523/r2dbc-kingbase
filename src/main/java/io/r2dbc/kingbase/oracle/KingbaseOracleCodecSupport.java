@@ -26,7 +26,7 @@ import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nullable;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -186,8 +186,8 @@ final class KingbaseOracleCodecSupport {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-            return Collections.singleton(this.oracleType.getOid());
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Collections.<PostgresTypeIdentifier>singleton(() -> this.typeOids.encodeOid(this.oracleType));
         }
 
         @Override
@@ -209,12 +209,12 @@ final class KingbaseOracleCodecSupport {
 
         @Override
         public EncodedParameter encode(Object value) {
-            return encode(value, this.oracleType.getObjectId());
+            return encode(value, this.typeOids.encodeOid(this.oracleType));
         }
 
         @Override
         public EncodedParameter encodeNull() {
-            return nullParameter(this.oracleType.getObjectId());
+            return nullParameter(this.typeOids.encodeOid(this.oracleType));
         }
 
         @Override

@@ -26,7 +26,7 @@ import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nullable;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -164,8 +164,8 @@ final class KingbaseMysqlCodecSupport {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-            return Collections.singleton(this.mysqlType.getOid());
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Collections.<PostgresTypeIdentifier>singleton(() -> this.typeOids.encodeOid(this.mysqlType));
         }
 
         @Override
@@ -187,12 +187,12 @@ final class KingbaseMysqlCodecSupport {
 
         @Override
         public EncodedParameter encode(Object value) {
-            return encode(value, this.mysqlType.getObjectId());
+            return encode(value, this.typeOids.encodeOid(this.mysqlType));
         }
 
         @Override
         public EncodedParameter encodeNull() {
-            return nullParameter(this.mysqlType.getObjectId());
+            return nullParameter(this.typeOids.encodeOid(this.mysqlType));
         }
 
         @Override

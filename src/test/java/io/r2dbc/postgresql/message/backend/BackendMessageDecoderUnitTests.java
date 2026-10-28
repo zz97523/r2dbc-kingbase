@@ -121,19 +121,7 @@ final class BackendMessageDecoderUnitTests {
     @Test
     void backendKeyData() {
         BackendMessage message = decode('K', buffer -> buffer.writeInt(100).writeInt(200));
-        assertThat(message).isEqualTo(new BackendKeyData(100, new byte[]{0, 0, 0, (byte) 200}));
-    }
-
-    @Test
-    void negotiateProtocolVersion() {
-        BackendMessage message = decode('v', buffer -> {
-            buffer.writeInt(0);
-            buffer.writeInt(1);
-            buffer.writeCharSequence("_pq_.foo", UTF_8);
-            buffer.writeByte(0);
-            return buffer;
-        });
-        assertThat(message).isEqualTo(new NegotiateProtocolVersion(0, Collections.singletonList("_pq_.foo")));
+        assertThat(message).isEqualTo(new BackendKeyData(100, 200));
     }
 
     @Test
@@ -156,7 +144,7 @@ final class BackendMessageDecoderUnitTests {
 
             return buffer;
         });
-        assertThat(message).isEqualTo(new CommandComplete("COPY", null, 100L));
+        assertThat(message).isEqualTo(new CommandComplete("COPY", null, 100));
     }
 
     @Test
@@ -204,10 +192,8 @@ final class BackendMessageDecoderUnitTests {
             .writeShort(1)
             .writeInt(4)
             .writeInt(100));
-        DataRow expectedMessage = new DataRow(TEST.buffer(4).writeInt(100));
-        assertThat(message).isEqualTo(expectedMessage);
+        assertThat(message).isEqualTo(new DataRow(TEST.buffer(4).writeInt(100)));
         message.release();
-        expectedMessage.release();
     }
 
     @Test

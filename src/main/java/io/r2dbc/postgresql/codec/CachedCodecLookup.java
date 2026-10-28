@@ -111,15 +111,26 @@ class CachedCodecLookup implements CodecLookup {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> Codec<T> findEncodeCodec(T value) {
-        return findCodec(value.getClass(), this.encodeCodecsCache, () -> {
+        Codec<T> cached = (Codec<T>) this.encodeCodecsCache.get(value.getClass());
+        if (cached != null && cached.canEncode(value)) {
+            return cached;
+        }
+
+        synchronized (this) {
+            cached = (Codec<T>) this.encodeCodecsCache.get(value.getClass());
+            if (cached != null && cached.canEncode(value)) {
+                return cached;
+            }
+
             LOG.trace("[codec-finder type={}] Encode codec not found in cache", value.getClass().getName());
             Codec<T> c = this.delegate.findEncodeCodec(value);
             if (c != null) {
-                this.encodeCodecsCache.putIfAbsent(value.getClass(), c);
+                this.encodeCodecsCache.put(value.getClass(), c);
             }
             return c;
-        });
+        }
     }
 
     @Override

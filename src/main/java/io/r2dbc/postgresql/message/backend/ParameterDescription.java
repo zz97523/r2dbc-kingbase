@@ -76,7 +76,7 @@ public final class ParameterDescription implements BackendMessage {
     static ParameterDescription decode(ByteBuf in) {
         Assert.requireNonNull(in, "in must not be null");
 
-        int count = in.readUnsignedShort();
+        int count = in.readShort();
         List<Integer> parameters = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             parameters.add(in.readInt());

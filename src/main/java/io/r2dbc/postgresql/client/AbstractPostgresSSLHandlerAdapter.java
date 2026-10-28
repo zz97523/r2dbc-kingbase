@@ -19,7 +19,6 @@ package io.r2dbc.postgresql.client;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
@@ -29,9 +28,7 @@ import io.r2dbc.spi.R2dbcPermissionDeniedException;
 import reactor.core.publisher.Mono;
 
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.util.concurrent.CompletableFuture;
 
 abstract class AbstractPostgresSSLHandlerAdapter extends ChannelInboundHandlerAdapter implements GenericFutureListener<Future<Channel>> {
@@ -44,23 +41,9 @@ abstract class AbstractPostgresSSLHandlerAdapter extends ChannelInboundHandlerAd
 
     private final CompletableFuture<Void> handshakeFuture;
 
-    AbstractPostgresSSLHandlerAdapter(ByteBufAllocator alloc, SocketAddress socketAddress, SSLConfig sslConfig) {
+    AbstractPostgresSSLHandlerAdapter(ByteBufAllocator alloc, SSLConfig sslConfig) {
         this.sslConfig = sslConfig;
-
-        SslContext sslContext = sslConfig.getSslProvider().get();
-        SSLEngine sslEngine;
-        if (socketAddress instanceof InetSocketAddress) {
-            InetSocketAddress inetSocketAddress = (InetSocketAddress) socketAddress;
-            String hostString = inetSocketAddress.getHostString();
-            sslEngine = sslContext.newEngine(alloc, hostString, inetSocketAddress.getPort());
-        } else {
-            sslEngine = sslContext.newEngine(alloc);
-        }
-
-        SSLParameters sslParameters = sslConfig.getSslParametersFactory().apply(socketAddress);
-        sslEngine.setSSLParameters(sslParameters);
-
-        this.sslEngine = sslConfig.getSslEngineCustomizer().apply(sslEngine);
+        this.sslEngine = sslConfig.getSslProvider().get().newEngine(alloc);
         this.handshakeFuture = new CompletableFuture<>();
         this.sslHandler = new SslHandler(this.sslEngine);
         this.sslHandler.handshakeFuture().addListener(this);

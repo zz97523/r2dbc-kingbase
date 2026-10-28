@@ -29,14 +29,7 @@ final class BackendKeyDataUnitTests {
     void decode() {
         assertThat(BackendKeyData.class)
             .decoded(buffer -> buffer.writeInt(100).writeInt(200))
-            .isEqualTo(new BackendKeyData(100, new byte[]{0, 0, 0, (byte) 200}));
-    }
-
-    @Test
-    void decodeVariableLengthSecretKey() {
-        assertThat(BackendKeyData.class)
-            .decoded(buffer -> buffer.writeInt(100).writeBytes(new byte[]{1, 2, 3, 4, 5, 6, 7, 8}))
-            .isEqualTo(new BackendKeyData(100, new byte[]{1, 2, 3, 4, 5, 6, 7, 8}));
+            .isEqualTo(new BackendKeyData(100, 200));
     }
 
 }

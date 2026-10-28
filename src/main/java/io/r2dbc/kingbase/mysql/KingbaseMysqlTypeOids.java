@@ -43,10 +43,16 @@ import static io.r2dbc.postgresql.codec.PostgresqlObjectId.INT2;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.INT4;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.INT8;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.INTERVAL;
+import static io.r2dbc.postgresql.codec.PostgresqlObjectId.JSON;
+import static io.r2dbc.postgresql.codec.PostgresqlObjectId.JSONB;
+import static io.r2dbc.postgresql.codec.PostgresqlObjectId.JSONB_ARRAY;
+import static io.r2dbc.postgresql.codec.PostgresqlObjectId.JSON_ARRAY;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.MONEY;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.MONEY_ARRAY;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.NUMERIC;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.OID;
+import static io.r2dbc.postgresql.codec.PostgresqlObjectId.POINT;
+import static io.r2dbc.postgresql.codec.PostgresqlObjectId.POINT_ARRAY;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TEXT;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIME;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIMESTAMP;
@@ -54,6 +60,8 @@ import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIMESTAMPTZ;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIMETZ;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.VARBIT;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.VARCHAR;
+import static io.r2dbc.postgresql.codec.PostgresqlObjectId.XML;
+import static io.r2dbc.postgresql.codec.PostgresqlObjectId.XML_ARRAY;
 import static io.r2dbc.postgresql.message.Format.FORMAT_TEXT;
 
 /**
@@ -69,7 +77,9 @@ import static io.r2dbc.postgresql.message.Format.FORMAT_TEXT;
  */
 final class KingbaseMysqlTypeOids {
 
-    /** MySQL-mode typenames commonly present in Kingbase {@code pg_type}. */
+    /**
+     * MySQL-mode typenames commonly present in Kingbase {@code pg_type}.
+     */
     private static final List<String> LOOKUP_TYPENAMES = Collections.unmodifiableList(Arrays.asList(
         "date", "time", "datetime", "timestamp", "year", "bit",
         "tinyint", "int1", "smallint", "mediumint", "int3", "middleint",
@@ -80,7 +90,8 @@ final class KingbaseMysqlTypeOids {
         "binary", "varbinary",
         "blob", "tinyblob", "mediumblob", "longblob", "bytea",
         "clob", "nclob", "bpcharbyte", "varcharbyte", "rowid",
-        "bool", "boolean"
+        "bool", "boolean",
+        "enum", "set", "json", "jsonb", "xml", "point"
     ));
 
     private final Set<Integer> dateOids = new HashSet<>();
@@ -108,6 +119,18 @@ final class KingbaseMysqlTypeOids {
     private final Set<Integer> rowidOids = new HashSet<>();
 
     private final Set<Integer> moneyOids = new HashSet<>();
+
+    private final Set<Integer> enumOids = new HashSet<>();
+
+    private final Set<Integer> setOids = new HashSet<>();
+
+    private final Set<Integer> jsonOids = new HashSet<>();
+
+    private final Set<Integer> jsonbOids = new HashSet<>();
+
+    private final Set<Integer> xmlOids = new HashSet<>();
+
+    private final Set<Integer> pointOids = new HashSet<>();
 
     private final Map<String, Integer> arrayOids = new HashMap<>();
 
@@ -141,6 +164,14 @@ final class KingbaseMysqlTypeOids {
 
     private int encodeMoney = MONEY.getObjectId();
 
+    private int encodeJson = JSON.getObjectId();
+
+    private int encodeJsonb = JSONB.getObjectId();
+
+    private int encodeXml = XML.getObjectId();
+
+    private int encodePoint = POINT.getObjectId();
+
     private KingbaseMysqlTypeOids() {
     }
 
@@ -173,6 +204,7 @@ final class KingbaseMysqlTypeOids {
     static Mono<KingbaseMysqlTypeOids> load(PostgresqlConnection connection) {
         KingbaseMysqlTypeOids oids = postgresqlDefaults();
         return PostgresTypes.from(connection).lookupTypes(LOOKUP_TYPENAMES)
+            .distinct(type -> type.getName().toLowerCase(Locale.ROOT))
             .doOnNext(type -> oids.accept(type.getName(), type.getObjectId(), type.getArrayObjectId()))
             .then(Mono.just(oids))
             .onErrorMap(error -> new R2dbcNonTransientResourceException(
@@ -190,8 +222,20 @@ final class KingbaseMysqlTypeOids {
         addAll(this.yearOids, INT2, INT4, INT8, NUMERIC);
         addAll(this.booleanOids, BOOL, INT2, INT4, INT8, NUMERIC);
         addAll(this.moneyOids, MONEY);
+        addAll(this.jsonOids, JSON, JSONB);
+        addAll(this.jsonbOids, JSONB);
+        addAll(this.xmlOids, XML);
+        addAll(this.pointOids, POINT);
         this.namedOids.put("money", MONEY.getObjectId());
+        this.namedOids.put("json", JSON.getObjectId());
+        this.namedOids.put("jsonb", JSONB.getObjectId());
+        this.namedOids.put("xml", XML.getObjectId());
+        this.namedOids.put("point", POINT.getObjectId());
         this.arrayOids.put("money", MONEY_ARRAY.getObjectId());
+        this.arrayOids.put("json", JSON_ARRAY.getObjectId());
+        this.arrayOids.put("jsonb", JSONB_ARRAY.getObjectId());
+        this.arrayOids.put("xml", XML_ARRAY.getObjectId());
+        this.arrayOids.put("point", POINT_ARRAY.getObjectId());
         // date/time columns also readable as text on the wire
         this.dateOids.addAll(this.textOids);
         this.timeOids.addAll(this.textOids);
@@ -245,19 +289,6 @@ final class KingbaseMysqlTypeOids {
                 this.bitOids.add(oid);
                 this.booleanOids.add(oid);
                 break;
-            case "money":
-                this.moneyOids.add(oid);
-                this.encodeMoney = oid;
-                break;
-            case "int unsigned":
-                this.numericOids.add(oid);
-                this.intUnsignedOids.add(oid);
-                break;
-            case "bigint unsigned":
-                this.numericOids.add(oid);
-                this.bigintUnsignedOids.add(oid);
-                this.encodeBigintUnsigned = oid;
-                break;
             case "tinyint":
             case "int1":
             case "smallint":
@@ -275,6 +306,19 @@ final class KingbaseMysqlTypeOids {
                 this.bitOids.add(oid);
                 this.yearOids.add(oid);
                 this.booleanOids.add(oid);
+                break;
+            case "money":
+                this.moneyOids.add(oid);
+                this.encodeMoney = oid;
+                break;
+            case "int unsigned":
+                this.numericOids.add(oid);
+                this.intUnsignedOids.add(oid);
+                break;
+            case "bigint unsigned":
+                this.numericOids.add(oid);
+                this.bigintUnsignedOids.add(oid);
+                this.encodeBigintUnsigned = oid;
                 break;
             case "bpchar":
             case "bpcharbyte":
@@ -323,6 +367,31 @@ final class KingbaseMysqlTypeOids {
                 this.rowidOids.add(oid);
                 this.textOids.add(oid);
                 this.encodeRowid = oid;
+                break;
+            case "enum":
+                this.enumOids.add(oid);
+                this.textOids.add(oid);
+                break;
+            case "set":
+                this.setOids.add(oid);
+                this.textOids.add(oid);
+                break;
+            case "json":
+                this.jsonOids.add(oid);
+                this.encodeJson = oid;
+                break;
+            case "jsonb":
+                this.jsonOids.add(oid);
+                this.jsonbOids.add(oid);
+                this.encodeJsonb = oid;
+                break;
+            case "xml":
+                this.xmlOids.add(oid);
+                this.encodeXml = oid;
+                break;
+            case "point":
+                this.pointOids.add(oid);
+                this.encodePoint = oid;
                 break;
             default:
                 break;
@@ -387,6 +456,30 @@ final class KingbaseMysqlTypeOids {
         return this.moneyOids.contains(oid);
     }
 
+    boolean isEnum(int oid) {
+        return this.enumOids.contains(oid);
+    }
+
+    boolean isSet(int oid) {
+        return this.setOids.contains(oid);
+    }
+
+    boolean isJson(int oid) {
+        return this.jsonOids.contains(oid);
+    }
+
+    boolean isJsonb(int oid) {
+        return this.jsonbOids.contains(oid);
+    }
+
+    boolean isXml(int oid) {
+        return this.xmlOids.contains(oid);
+    }
+
+    boolean isPoint(int oid) {
+        return this.pointOids.contains(oid);
+    }
+
     int encodeDate() {
         return this.encodeDate;
     }
@@ -433,6 +526,52 @@ final class KingbaseMysqlTypeOids {
 
     int encodeMoney() {
         return this.encodeMoney;
+    }
+
+    int encodeJson() {
+        return this.encodeJson;
+    }
+
+    int encodeJsonb() {
+        return this.encodeJsonb;
+    }
+
+    int encodeXml() {
+        return this.encodeXml;
+    }
+
+    int encodePoint() {
+        return this.encodePoint;
+    }
+
+    int encodeOid(KingbaseMysqlType type) {
+        switch (type) {
+            case MONEY:
+                return this.encodeMoney;
+            case BIT:
+                return this.encodeBitAsInt;
+            case YEAR:
+                return this.encodeYear;
+            case DATE:
+                return this.encodeDate;
+            case TIME:
+                return this.encodeTime;
+            case DATETIME:
+                return this.encodeTimestamp;
+            case TIMESTAMP:
+                return this.encodeTimestamptz;
+            case VARCHAR:
+            case TEXT:
+                return this.encodeText;
+            case BLOB:
+                return this.encodeBinary;
+            case ROWID:
+                return this.encodeRowid;
+            case BOOLEAN:
+                return this.encodeBoolean;
+            default:
+                return type.getObjectId();
+        }
     }
 
     int oid(String typname) {

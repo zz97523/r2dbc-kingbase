@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Test;
 import static io.r2dbc.postgresql.message.backend.ReadyForQuery.TransactionStatus.ERROR;
 import static io.r2dbc.postgresql.message.backend.ReadyForQuery.TransactionStatus.IDLE;
 import static io.r2dbc.postgresql.message.backend.ReadyForQuery.TransactionStatus.TRANSACTION;
-import static io.r2dbc.postgresql.message.backend.ReadyForQuery.TransactionStatus.UNKNOWN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
@@ -45,13 +44,6 @@ final class ReadyForQueryUnitTests {
     }
 
     @Test
-    void decodeUnknownStatus() {
-        BackendMessageAssert.assertThat(ReadyForQuery.class)
-            .decoded(buffer -> buffer.writeByte('A'))
-            .isEqualTo(new ReadyForQuery(UNKNOWN));
-    }
-
-    @Test
     void valueOfError() {
         assertThat(TransactionStatus.valueOf((byte) 'E')).isEqualTo(ERROR);
     }
@@ -62,8 +54,9 @@ final class ReadyForQueryUnitTests {
     }
 
     @Test
-    void valueOfUnknown() {
-        assertThat(TransactionStatus.valueOf((byte) 'A')).isEqualTo(UNKNOWN);
+    void valueOfInvalid() {
+        assertThatIllegalArgumentException().isThrownBy(() -> TransactionStatus.valueOf((byte) 'A'))
+            .withMessage("A is not a valid transaction status");
     }
 
     @Test

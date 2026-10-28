@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2022 the original author or authors.
+ * Copyright 2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,10 @@
  */
 
 /**
- * Reactive Relational Database Connectivity for PostgreSQL (wire protocol engine).
- * Used by KingbaseES modes under {@code io.r2dbc.kingbase}.
+ * An implementation of the Reactive Relational Database Connection API for PostgreSQL servers.
  */
+
+@NonNullApi
 package io.r2dbc.postgresql;
+
+import reactor.util.annotation.NonNullApi;

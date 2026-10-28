@@ -104,7 +104,7 @@ final class EnumCodecIntegrationTests extends AbstractIntegrationTests {
             .execute()
             .flatMap(PostgresqlResult::getRowsUpdated)
             .as(StepVerifier::create)
-            .expectNext(1L)
+            .expectNext(1)
             .verifyComplete();
 
         String result = SERVER.getJdbcOperations().queryForObject("SELECT the_value FROM enum_test", String.class);
@@ -125,7 +125,7 @@ final class EnumCodecIntegrationTests extends AbstractIntegrationTests {
             .execute()
             .flatMap(PostgresqlResult::getRowsUpdated)
             .as(StepVerifier::create)
-            .expectNext(1L)
+            .expectNext(1)
             .verifyComplete();
 
         String result = SERVER.getJdbcOperations().queryForObject("SELECT the_value FROM enum_test", String.class);
@@ -143,7 +143,7 @@ final class EnumCodecIntegrationTests extends AbstractIntegrationTests {
             .execute()
             .flatMap(PostgresqlResult::getRowsUpdated)
             .as(StepVerifier::create)
-            .expectNext(1L)
+            .expectNext(1)
             .verifyComplete();
 
         this.connection.createStatement("SELECT * FROM enum_test")

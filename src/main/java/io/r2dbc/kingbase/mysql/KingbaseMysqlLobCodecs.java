@@ -30,7 +30,7 @@ import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
 import io.r2dbc.spi.Blob;
 import io.r2dbc.spi.Clob;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nullable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -95,8 +95,8 @@ final class KingbaseMysqlLobCodecs {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-            return Arrays.asList(VARCHAR, TEXT, BPCHAR);
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Arrays.<PostgresTypeIdentifier>asList(VARCHAR, TEXT, BPCHAR);
         }
 
         @Override
@@ -104,7 +104,8 @@ final class KingbaseMysqlLobCodecs {
             if (!(type == String[].class || type == Set.class || Set.class.isAssignableFrom(type))) {
                 return false;
             }
-            return this.typeOids.canDecodeTextExtension(dataType, format, this.typeOids.isText(dataType));
+            return this.typeOids.canDecodeTextExtension(dataType, format,
+                this.typeOids.isSet(dataType) || this.typeOids.isText(dataType));
         }
 
         @Override

@@ -83,7 +83,7 @@ final class PostgresqlSegmentResult extends AbstractReferenceCounted implements 
 
                 if (message instanceof CommandComplete) {
 
-                    Long rowCount = ((CommandComplete) message).getRows();
+                    Integer rowCount = ((CommandComplete) message).getRows();
                     if (rowCount != null) {
                         sink.next(new PostgresqlUpdateCountSegment(rowCount));
                     }
@@ -114,7 +114,7 @@ final class PostgresqlSegmentResult extends AbstractReferenceCounted implements 
     }
 
     @Override
-    public Mono<Long> getRowsUpdated() {
+    public Mono<Integer> getRowsUpdated() {
         return this.segments
             .<Integer>handle((segment, sink) -> {
 
@@ -137,7 +137,7 @@ final class PostgresqlSegmentResult extends AbstractReferenceCounted implements 
                     return;
                 }
 
-                long sum = 0;
+                int sum = 0;
 
                 for (Integer integer : list) {
                     sum += integer;

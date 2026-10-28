@@ -18,8 +18,6 @@ package io.r2dbc.postgresql.util;
 
 import com.zaxxer.hikari.HikariDataSource;
 import io.r2dbc.postgresql.PostgresqlConnectionConfiguration;
-import io.r2dbc.postgresql.authentication.UsernameAndPassword;
-import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -29,6 +27,7 @@ import org.testcontainers.containers.JdbcDatabaseContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.MountableFile;
+import reactor.util.annotation.Nullable;
 
 import javax.sql.DataSource;
 import java.io.File;
@@ -49,8 +48,6 @@ import static org.testcontainers.utility.MountableFile.forHostPath;
  */
 public final class PostgresqlServerExtension implements BeforeAllCallback, AfterAllCallback {
 
-    static final String IMAGE_NAME = "postgres:18";
-
     static PostgreSQLContainer<?> containerInstance = null;
 
     static Network containerNetwork = null;
@@ -65,24 +62,15 @@ public final class PostgresqlServerExtension implements BeforeAllCallback, After
         return PostgresqlServerExtension.containerInstance = container();
     };
 
-    private final String imageName;
+    private final DatabaseContainer postgres = getContainer();
 
-    private final DatabaseContainer postgres;
-
-    private final boolean useTestContainer;
+    private final boolean useTestContainer = this.postgres instanceof TestContainer;
 
     private HikariDataSource dataSource;
 
     private JdbcOperations jdbcOperations;
 
     public PostgresqlServerExtension() {
-        this(IMAGE_NAME);
-    }
-
-    public PostgresqlServerExtension(String imageName) {
-        this.imageName = imageName;
-        this.postgres = getContainer();
-        this.useTestContainer = this.postgres instanceof TestContainer;
     }
 
     private DatabaseContainer getContainer() {
@@ -192,16 +180,12 @@ public final class PostgresqlServerExtension implements BeforeAllCallback, After
         return this.postgres.getPassword();
     }
 
-    public UsernameAndPassword getUsernameAndPassword() {
-        return new UsernameAndPassword(getUsername(), getPassword());
-    }
-
     public DatabaseContainer getPostgres() {
         return this.postgres;
     }
 
     private <T extends PostgreSQLContainer<T>> T container() {
-        T container = new PostgreSQLContainer<T>(this.imageName)
+        T container = new PostgreSQLContainer<T>("postgres:13.3")
             .withCopyFileToContainer(getHostPath("server.crt", 0600), "/var/server.crt")
             .withCopyFileToContainer(getHostPath("server.key", 0600), "/var/server.key")
             .withCopyFileToContainer(getHostPath("client.crt", 0600), "/var/client.crt")
@@ -318,7 +302,7 @@ public final class PostgresqlServerExtension implements BeforeAllCallback, After
 
         @Override
         public String getHost() {
-            return this.container.getHost();
+            return this.container.getContainerIpAddress();
         }
 
         @Override

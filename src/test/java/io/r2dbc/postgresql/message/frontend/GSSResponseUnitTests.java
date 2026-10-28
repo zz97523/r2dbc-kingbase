@@ -36,7 +36,7 @@ final class GSSResponseUnitTests {
 
     @Test
     void encode() {
-        assertThat(new GSSResponse(ByteBuffer.allocate(4).putInt(100).flip())).encoded()
+        assertThat(new GSSResponse(ByteBuffer.allocate(4).putInt(100))).encoded()
             .isDeferred()
             .isEncodedAs(buffer -> buffer
                 .writeByte('p')

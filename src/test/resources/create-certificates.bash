@@ -23,22 +23,21 @@
 #
 ##################################################################################
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 echo "Creating client certificate..."
 
 docker run \
-  -v "${SCRIPT_DIR}":/out \
+  -v "$(pwd)":/out \
   --rm \
   --entrypoint openssl \
   frapsoft/openssl \
   req -newkey rsa:2048 -nodes -keyout /out/client.key -out /out/client.crt -x509 -days 3650 -subj "/CN=test-ssl-with-cert"
 
+
 echo "Creating server certificate..."
 
 docker run \
-  -v "${SCRIPT_DIR}":/out \
+  -v "$(pwd)":/out \
   --rm \
   --entrypoint openssl \
   frapsoft/openssl \
-  req -newkey rsa:2048 -nodes -keyout /out/server.key -out /out/server.crt -x509 -days 3650 -config /out/server-cert.conf
+  req -newkey rsa:2048 -nodes -keyout /out/server.key -out /out/server.crt -x509 -days 3650 -subj "/CN=r2dbc-postgresql-test-server"

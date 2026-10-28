@@ -6,21 +6,28 @@
  * You may obtain a copy of the License at
  *
  *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.r2dbc.kingbase.mysql;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.RowId;
 import java.util.Arrays;
 
-/** Simple {@link RowId} implementation for Kingbase MySQL mode. */
+/**
+ * Simple {@link RowId} implementation for Kingbase MySQL mode.
+ */
 public final class KingbaseMysqlRowId implements RowId {
 
     private final byte[] bytes;
 
     public KingbaseMysqlRowId(String text) {
-        this.bytes = text == null ? new byte[0] : text.getBytes(StandardCharsets.UTF_8);
+        this.bytes = text == null ? new byte[0] : text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
     public KingbaseMysqlRowId(byte[] bytes) {
@@ -34,8 +41,13 @@ public final class KingbaseMysqlRowId implements RowId {
 
     @Override
     public boolean equals(Object other) {
-        return this == other || other instanceof RowId
-            && Arrays.equals(this.bytes, ((RowId) other).getBytes());
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof RowId)) {
+            return false;
+        }
+        return Arrays.equals(this.bytes, ((RowId) other).getBytes());
     }
 
     @Override
@@ -45,7 +57,7 @@ public final class KingbaseMysqlRowId implements RowId {
 
     @Override
     public String toString() {
-        return new String(this.bytes, StandardCharsets.UTF_8);
+        return new String(this.bytes, java.nio.charset.StandardCharsets.UTF_8);
     }
 
 }

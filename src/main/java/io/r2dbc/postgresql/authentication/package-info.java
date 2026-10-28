@@ -18,5 +18,7 @@
  * Handlers for the various styles of authentication.
  */
 
-@org.jspecify.annotations.NullMarked
+@NonNullApi
 package io.r2dbc.postgresql.authentication;
+
+import reactor.util.annotation.NonNullApi;

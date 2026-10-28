@@ -19,7 +19,6 @@ package io.r2dbc.postgresql;
 import com.ongres.scram.client.ScramClient;
 import io.r2dbc.postgresql.client.Client;
 import io.r2dbc.postgresql.client.TestClient;
-import io.r2dbc.postgresql.client.TestStartupParameterProvider;
 import io.r2dbc.postgresql.message.backend.AuthenticationMD5Password;
 import io.r2dbc.postgresql.message.backend.AuthenticationOk;
 import io.r2dbc.postgresql.message.backend.AuthenticationSASL;
@@ -29,13 +28,14 @@ import io.r2dbc.postgresql.message.frontend.SASLInitialResponse;
 import io.r2dbc.postgresql.message.frontend.StartupMessage;
 import io.r2dbc.postgresql.util.ByteBufferUtils;
 import io.r2dbc.spi.R2dbcNonTransientResourceException;
-
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.Collections;
 
+import static com.ongres.scram.client.ScramClient.ChannelBinding.NO;
+import static com.ongres.scram.common.stringprep.StringPreparations.NO_PREPARATION;
 import static io.r2dbc.postgresql.util.TestByteBufAllocator.TEST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -44,6 +44,16 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
  * Unit tests for {@link PostgresqlConnectionFactory}.
  */
 final class PostgresqlConnectionFactoryUnitTests {
+
+    @Test
+    void constructorNoClientFactory() {
+        assertThatIllegalArgumentException().isThrownBy(() -> new PostgresqlConnectionFactory(null, PostgresqlConnectionConfiguration.builder()
+            .host("test-host")
+            .password("test-password")
+            .username("test-username")
+            .build()))
+            .withMessage("clientFactory must not be null");
+    }
 
     @Test
     void constructorNoConfiguration() {
@@ -56,10 +66,8 @@ final class PostgresqlConnectionFactoryUnitTests {
         // @formatter:off
         Client client = TestClient.builder()
             .window()
-                .expectRequest(new StartupMessage( "test-database", "test-username", new TestStartupParameterProvider()))
-                .thenRespond(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))
-                .expectRequest(new PasswordMessage("md55e9836cdb369d50e3bc7d127e88b4804"))
-                .thenRespond(AuthenticationOk.INSTANCE)
+                .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", Collections.emptyMap())).thenRespond(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))
+                .expectRequest(new PasswordMessage("md55e9836cdb369d50e3bc7d127e88b4804")).thenRespond(AuthenticationOk.INSTANCE)
                 .done()
             .build();
         // @formatter:on
@@ -72,7 +80,7 @@ final class PostgresqlConnectionFactoryUnitTests {
             .password("test-password")
             .build();
 
-        new PostgresqlConnectionFactory(testClientFactory(client, configuration), configuration)
+        new PostgresqlConnectionFactory(c -> Mono.just(client), configuration)
             .create()
             .as(StepVerifier::create)
             .expectNextCount(1)
@@ -81,17 +89,17 @@ final class PostgresqlConnectionFactoryUnitTests {
 
     @Test
     void createAuthenticationSASL() {
-        ScramClient scramClient = ScramClient.builder()
-            .advertisedMechanisms(Collections.singletonList("SCRAM-SHA-256"))
-            .username("test-username")
-            .password("test-password".toCharArray())
-            .build();
+        ScramClient scramClient = ScramClient
+            .channelBinding(NO)
+            .stringPreparation(NO_PREPARATION)
+            .selectMechanismBasedOnServerAdvertised("SCRAM-SHA-256")
+            .setup();
 
         // @formatter:off
         Client client = TestClient.builder()
             .window()
-                .expectRequest(new StartupMessage( "test-database", "test-username", new TestStartupParameterProvider())).thenRespond(new AuthenticationSASL(Collections.singletonList("SCRAM-SHA-256")))
-                .expectRequest(new SASLInitialResponse(ByteBufferUtils.encode(scramClient.clientFirstMessage().toString()), "SCRAM-SHA-256")).thenRespond(AuthenticationOk.INSTANCE)
+                .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(new AuthenticationSASL(Collections.singletonList("SCRAM-SHA-256")))
+                .expectRequest(new SASLInitialResponse(ByteBufferUtils.encode(scramClient.scramSession("test-username").clientFirstMessage()), "SCRAM-SHA-256")).thenRespond(AuthenticationOk.INSTANCE)
                 .done()
             .build();
         // @formatter:on
@@ -110,7 +118,7 @@ final class PostgresqlConnectionFactoryUnitTests {
         // @formatter:off
         Client client = TestClient.builder()
             .window()
-                .expectRequest(new StartupMessage( "test-database", "test-username", new TestStartupParameterProvider())).thenRespond(new ErrorResponse(Collections.emptyList()))
+                .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(new ErrorResponse(Collections.emptyList()))
                 .done()
             .build();
         // @formatter:on
@@ -123,7 +131,7 @@ final class PostgresqlConnectionFactoryUnitTests {
             .password("test-password")
             .build();
 
-        new PostgresqlConnectionFactory(testClientFactory(client, configuration), configuration).create()
+        new PostgresqlConnectionFactory(c -> Mono.just(client), configuration).create()
             .as(StepVerifier::create)
             .verifyErrorMatches(R2dbcNonTransientResourceException.class::isInstance);
     }
@@ -133,7 +141,7 @@ final class PostgresqlConnectionFactoryUnitTests {
         // @formatter:off
         Client client = TestClient.builder()
             .window()
-                .expectRequest(new StartupMessage( "test-database", "test-username", new TestStartupParameterProvider())).thenRespond(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))
+                .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", null)).thenRespond(new AuthenticationMD5Password(TEST.buffer(4).writeInt(100)))
                 .expectRequest(new PasswordMessage("md55e9836cdb369d50e3bc7d127e88b4804")).thenRespond(AuthenticationOk.INSTANCE)
                 .done()
             .build();
@@ -147,11 +155,7 @@ final class PostgresqlConnectionFactoryUnitTests {
             .password("test-password")
             .build();
 
-        assertThat(new PostgresqlConnectionFactory(testClientFactory(client, configuration), configuration).getMetadata()).isNotNull();
-    }
-
-    private ConnectionFunction testClientFactory(Client client, PostgresqlConnectionConfiguration configuration) {
-        return new SingleHostConnectionFunction((endpoint, settings) -> Mono.just(client), configuration);
+        assertThat(new PostgresqlConnectionFactory(c -> Mono.just(client), configuration).getMetadata()).isNotNull();
     }
 
 }

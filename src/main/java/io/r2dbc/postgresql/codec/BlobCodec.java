@@ -23,13 +23,12 @@ import io.r2dbc.postgresql.client.EncodedParameter;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.spi.Blob;
-import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.BYTEA;
 import static io.r2dbc.postgresql.message.Format.FORMAT_TEXT;
@@ -88,13 +87,9 @@ final class BlobCodec extends AbstractCodec<Blob> {
 
     private static final class ByteABlob implements Blob {
 
-        private static final AtomicIntegerFieldUpdater<ByteABlob> RELEASED = AtomicIntegerFieldUpdater.newUpdater(ByteABlob.class, "released");
-
         private final ByteBuf byteBuf;
 
         private final Format format;
-
-        private volatile int released;
 
         private ByteABlob(ByteBuf byteBuf, Format format) {
             this.byteBuf = byteBuf.retain();
@@ -103,7 +98,11 @@ final class BlobCodec extends AbstractCodec<Blob> {
 
         @Override
         public Mono<Void> discard() {
-            return Mono.fromRunnable(this::release);
+            return Mono.fromRunnable(() -> {
+                if (this.byteBuf.refCnt() > 0) {
+                    this.byteBuf.release();
+                }
+            });
         }
 
         @Override
@@ -114,16 +113,7 @@ final class BlobCodec extends AbstractCodec<Blob> {
                 }
 
                 return ByteBuffer.wrap(AbstractBinaryCodec.decodeFromHex(this.byteBuf));
-            }).doAfterTerminate(this::release);
-        }
-
-        /**
-         * Release the retained buffer exactly once.
-         */
-        private void release() {
-            if (RELEASED.compareAndSet(this, 0, 1)) {
-                this.byteBuf.release();
-            }
+            }).doAfterTerminate(this.byteBuf::release);
         }
 
     }

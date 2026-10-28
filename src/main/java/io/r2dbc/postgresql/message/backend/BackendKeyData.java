@@ -19,7 +19,6 @@ package io.r2dbc.postgresql.message.backend;
 import io.netty.buffer.ByteBuf;
 import io.r2dbc.postgresql.util.Assert;
 
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -29,18 +28,17 @@ public final class BackendKeyData implements BackendMessage {
 
     private final int processId;
 
-    private final byte[] secretKey;
+    private final int secretKey;
 
     /**
      * Create a new message.
      *
      * @param processId the process ID of this backend
-     * @param secretKey the secret key of this backend. Always 4 bytes before protocol version 3.2, variable-length (up to 256 bytes) since 3.2
-     * @throws IllegalArgumentException if {@code secretKey} is {@code null}
+     * @param secretKey the secret key of this backend
      */
-    public BackendKeyData(int processId, byte[] secretKey) {
+    public BackendKeyData(int processId, int secretKey) {
         this.processId = processId;
-        this.secretKey = Assert.requireNonNull(secretKey, "secretKey must not be null");
+        this.secretKey = secretKey;
     }
 
     @Override
@@ -53,7 +51,7 @@ public final class BackendKeyData implements BackendMessage {
         }
         BackendKeyData that = (BackendKeyData) o;
         return this.processId == that.processId &&
-            Arrays.equals(this.secretKey, that.secretKey);
+            this.secretKey == that.secretKey;
     }
 
     /**
@@ -70,31 +68,27 @@ public final class BackendKeyData implements BackendMessage {
      *
      * @return the secret key of this backend
      */
-    public byte[] getSecretKey() {
+    public int getSecretKey() {
         return this.secretKey;
     }
 
     @Override
     public int hashCode() {
-        return 31 * Objects.hash(this.processId) + Arrays.hashCode(this.secretKey);
+        return Objects.hash(this.processId, this.secretKey);
     }
 
     @Override
     public String toString() {
         return "BackendKeyData{" +
             "processId=" + this.processId +
-            ", secretKey=" + Arrays.toString(this.secretKey) +
+            ", secretKey=" + this.secretKey +
             '}';
     }
 
     static BackendKeyData decode(ByteBuf in) {
         Assert.requireNonNull(in, "in must not be null");
 
-        int processId = in.readInt();
-        byte[] secretKey = new byte[in.readableBytes()];
-        in.readBytes(secretKey);
-
-        return new BackendKeyData(processId, secretKey);
+        return new BackendKeyData(in.readInt(), in.readInt());
     }
 
 }

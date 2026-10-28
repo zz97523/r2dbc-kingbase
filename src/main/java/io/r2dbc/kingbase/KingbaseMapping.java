@@ -31,6 +31,12 @@ public final class KingbaseMapping {
 
     /**
      * Resolve the SQL mapper for the given mode.
+     * <p>
+     * {@link KingbaseMode#AUTO} is <strong>not</strong> resolved here. Auto-detect happens in
+     * {@code PostgresqlConnectionFactory} via {@link KingbaseDatabaseModeDetector} ({@code SHOW
+     * database_mode}); afterward {@code applyKingbaseMode} calls this method with a concrete mode
+     * ({@code MYSQL}/{@code ORACLE}/{@code SQLSERVER}/{@code POSTGRESQL}). Until detection finishes,
+     * {@code AUTO} uses the PostgreSQL identity mapper only as a temporary bootstrap.
      *
      * @param mode kingbase mode, {@code null} treated as {@link KingbaseMode#POSTGRESQL}
      * @return mapper
@@ -47,7 +53,7 @@ public final class KingbaseMapping {
             case SQLSERVER:
                 return KingbaseSqlServerSqlMapper.INSTANCE;
             case POSTGRESQL:
-            case AUTO:
+            case AUTO: // temporary until SHOW database_mode resolves; not a silent fallback
             default:
                 return KingbasePostgresqlSqlMapper.INSTANCE;
         }

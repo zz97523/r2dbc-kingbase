@@ -20,20 +20,15 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.FLOAT4;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.FLOAT4_ARRAY;
 
-final class FloatCodec extends AbstractNumericCodec<Float> implements PrimitiveWrapperCodecProvider<Float> {
+final class FloatCodec extends AbstractNumericCodec<Float> {
 
     FloatCodec(ByteBufAllocator byteBufAllocator) {
         super(Float.class, byteBufAllocator);
-    }
-
-    @Override
-    public PrimitiveCodec<Float> getPrimitiveCodec() {
-        return new PrimitiveCodec<>(Float.TYPE, Float.class, this);
     }
 
     @Override

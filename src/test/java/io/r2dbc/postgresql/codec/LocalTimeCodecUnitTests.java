@@ -93,12 +93,12 @@ final class LocalTimeCodecUnitTests {
 
     @Test
     void doEncode() {
-        LocalTime localTime = LocalTime.parse("14:33:43.62");
+        LocalTime localTime = LocalTime.now();
 
         assertThat(new LocalTimeCodec(TEST).doEncode(localTime))
             .hasFormat(FORMAT_TEXT)
             .hasType(TIME.getObjectId())
-            .hasValue(encode(TEST, "14:33:43.62"));
+            .hasValue(encode(TEST, localTime.toString()));
     }
 
     @Test

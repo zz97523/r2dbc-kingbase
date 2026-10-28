@@ -350,19 +350,19 @@ public final class Interval implements ChronoPeriod, Serializable {
                     if (unit == ChronoUnit.DAYS) {
                         days = Math.addExact(days, Math.toIntExact(value));
                     } else if (unit == ChronoUnit.WEEKS) {
-                        days = Math.addExact(days, Math.toIntExact(Math.multiplyExact(value, 7)));
+                        days = Math.addExact(days, Math.toIntExact(Math.multiplyExact(value, 7L)));
                     } else if (unit == ChronoUnit.MONTHS) {
                         months = Math.addExact(months, Math.toIntExact(value));
                     } else if (unit == IsoFields.QUARTER_YEARS) {
-                        months = Math.addExact(months, Math.toIntExact(Math.multiplyExact(value, 3)));
+                        months = Math.addExact(months, Math.toIntExact(Math.multiplyExact(value, 3L)));
                     } else if (unit == ChronoUnit.YEARS) {
                         years = Math.addExact(years, Math.toIntExact(value));
                     } else if (unit == ChronoUnit.DECADES) {
-                        years = Math.addExact(years, Math.toIntExact(Math.multiplyExact(value, 10)));
+                        years = Math.addExact(years, Math.toIntExact(Math.multiplyExact(value, 10L)));
                     } else if (unit == ChronoUnit.CENTURIES) {
-                        years = Math.addExact(years, Math.toIntExact(Math.multiplyExact(value, 100)));
+                        years = Math.addExact(years, Math.toIntExact(Math.multiplyExact(value, 100L)));
                     } else if (unit == ChronoUnit.MILLENNIA) {
-                        years = Math.addExact(years, Math.toIntExact(Math.multiplyExact(value, 1000)));
+                        years = Math.addExact(years, Math.toIntExact(Math.multiplyExact(value, 1000L)));
                     } else {
                         throw new DateTimeException("Unknown unit: " + unit);
                     }
@@ -828,24 +828,16 @@ public final class Interval implements ChronoPeriod, Serializable {
 
                 token = st.nextToken();
 
-                // This handles millenniums, centuries, decades, years, months, weeks, days for both, ISO and
+                // This handles years, months, days for both, ISO and
                 // Non-ISO intervals. Hours, minutes, seconds and microseconds
                 // are handled for Non-ISO intervals here.
 
-                if (token.startsWith("mill")) {
-                    years = Math.addExact(years, Math.toIntExact(Math.multiplyExact(Integer.parseInt(valueToken), 1000)));
-                } else if (token.startsWith("cent") || token.equals("c")) {
-                    years = Math.addExact(years, Math.toIntExact(Math.multiplyExact(Integer.parseInt(valueToken), 100)));
-                } else if (token.startsWith("dec")) {
-                    years = Math.addExact(years, Math.toIntExact(Math.multiplyExact(Integer.parseInt(valueToken), 10)));
-                } else if (token.startsWith("year") || token.startsWith("yr")) {
-                    years = Math.addExact(years, Math.toIntExact(Integer.parseInt(valueToken)));
+                if (token.startsWith("year") || token.startsWith("yr")) {
+                    years = Integer.parseInt(valueToken);
                 } else if (token.startsWith("mon")) {
                     months = Integer.parseInt(valueToken);
-                } else if (token.startsWith("week") || token.equals("w")) {
-                    days = Math.addExact(days, Math.toIntExact(Math.multiplyExact(Integer.parseInt(valueToken), 7)));
                 } else if (token.startsWith("day")) {
-                    days = Math.addExact(days, Math.toIntExact(Integer.parseInt(valueToken)));
+                    days = Integer.parseInt(valueToken);
                 } else if (token.startsWith("hour") || token.startsWith("hr")) {
                     hours = Integer.parseInt(valueToken);
                 } else if (token.startsWith("min")) {

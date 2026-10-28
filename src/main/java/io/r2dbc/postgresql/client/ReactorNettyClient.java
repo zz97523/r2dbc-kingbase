@@ -22,11 +22,9 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoop;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.netty.handler.ssl.SslHandler;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -37,7 +35,6 @@ import io.r2dbc.postgresql.message.backend.BackendMessage;
 import io.r2dbc.postgresql.message.backend.BackendMessageDecoder;
 import io.r2dbc.postgresql.message.backend.ErrorResponse;
 import io.r2dbc.postgresql.message.backend.Field;
-import io.r2dbc.postgresql.message.backend.NegotiateProtocolVersion;
 import io.r2dbc.postgresql.message.backend.NoticeResponse;
 import io.r2dbc.postgresql.message.backend.NotificationResponse;
 import io.r2dbc.postgresql.message.backend.ParameterStatus;
@@ -47,7 +44,6 @@ import io.r2dbc.postgresql.message.frontend.Terminate;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.spi.R2dbcNonTransientResourceException;
 import io.r2dbc.spi.R2dbcTransientResourceException;
-import org.jspecify.annotations.Nullable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -58,13 +54,13 @@ import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Operators;
 import reactor.core.publisher.Sinks;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.Connection;
 import reactor.netty.channel.AbortedException;
 import reactor.netty.tcp.TcpClient;
 import reactor.util.Logger;
 import reactor.util.Loggers;
+import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
 import reactor.util.context.Context;
 
@@ -76,7 +72,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.StringJoiner;
-import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
@@ -101,17 +96,15 @@ public final class ReactorNettyClient implements Client {
 
     private static final boolean DEBUG_ENABLED = logger.isDebugEnabled();
 
+    private static final Supplier<PostgresConnectionClosedException> UNEXPECTED = () -> new PostgresConnectionClosedException("Connection unexpectedly closed");
+
+    private static final Supplier<PostgresConnectionClosedException> EXPECTED = () -> new PostgresConnectionClosedException("Connection closed");
+
     private final ByteBufAllocator byteBufAllocator;
 
     private final ConnectionSettings settings;
 
     private final Connection connection;
-
-    private final Scheduler scheduler;
-
-    private final Supplier<PostgresConnectionClosedException> unexpected;
-
-    private final Supplier<PostgresConnectionClosedException> expected;
 
     private ConnectionContext context;
 
@@ -125,9 +118,7 @@ public final class ReactorNettyClient implements Client {
 
     private volatile Integer processId;
 
-    private volatile byte[] secretKey;
-
-    private volatile TimeZone timeZone;
+    private volatile Integer secretKey;
 
     private volatile TransactionStatus transactionStatus = IDLE;
 
@@ -150,33 +141,11 @@ public final class ReactorNettyClient implements Client {
         Assert.requireNonNull(connection, "Connection must not be null");
         this.settings = Assert.requireNonNull(settings, "ConnectionSettings must not be null");
 
-        connection.addHandlerLast(new EnsureSubscribersCompleteChannelHandler(this.requestSink));
-        connection.addHandlerLast(new LengthFieldBasedFrameDecoder(this.settings.getMaxMessageSize(), 1, 4, -4, 0));
+        connection.addHandler(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE - 5, 1, 4, -4, 0));
+        connection.addHandler(new EnsureSubscribersCompleteChannelHandler(this.requestSink));
         this.connection = connection;
         this.byteBufAllocator = connection.outbound().alloc();
-
-        ConnectionContext connectionContext = new ConnectionContext().withChannelId(connection.channel().toString());
-        this.unexpected = () -> new PostgresConnectionClosedException(this.context.getMessage("Connection unexpectedly closed"));
-        this.expected = () -> new PostgresConnectionClosedException(this.context.getMessage("Connection closed"));
-
-        SslHandler sslHandler = this.connection.channel().pipeline().get(SslHandler.class);
-
-        if (sslHandler == null) {
-            SSLSessionHandlerAdapter handlerAdapter = this.connection.channel().pipeline().get(SSLSessionHandlerAdapter.class);
-            if (handlerAdapter != null) {
-                sslHandler = handlerAdapter.getSslHandler();
-            }
-        }
-
-        if (sslHandler != null) {
-            SslHandler toUse = sslHandler;
-            connectionContext = connectionContext.withSslSession(() -> toUse.engine().getSession());
-        }
-
-        this.context = connectionContext;
-
-        EventLoop eventLoop = connection.channel().eventLoop();
-        this.scheduler = Schedulers.fromExecutorService(eventLoop, eventLoop.toString());
+        this.context = new ConnectionContext().withChannelId(connection.channel().toString());
 
         AtomicReference<Throwable> receiveError = new AtomicReference<>();
 
@@ -195,7 +164,6 @@ public final class ReactorNettyClient implements Client {
 
         Mono<Void> request = this.requestSink.asFlux()
             .concatMap(Function.identity())
-            .doOnDiscard(FrontendMessage.class, FrontendMessage::dispose)
             .flatMap(message -> {
                 if (DEBUG_ENABLED) {
                     logger.debug(this.context.getMessage(String.format("Request:  %s", message)));
@@ -216,7 +184,7 @@ public final class ReactorNettyClient implements Client {
 
             this.notificationProcessor.tryEmitComplete();
 
-            drainError(expected);
+            drainError(EXPECTED);
 
             boolean connected = isConnected();
             if (this.isClosed.compareAndSet(false, true)) {
@@ -262,10 +230,7 @@ public final class ReactorNettyClient implements Client {
     }
 
     private void doSendRequest(Publisher<FrontendMessage> it) {
-        // Serialize all emissions to the unicast requestSink under the same monitor that registers conversations
-        synchronized (this.messageSubscriber.conversations) {
-            this.requestSink.emitNext(it, Sinks.EmitFailureHandler.FAIL_FAST);
-        }
+        this.requestSink.emitNext(it, Sinks.EmitFailureHandler.FAIL_FAST);
     }
 
     private Mono<Void> resumeError(Throwable throwable) {
@@ -300,7 +265,9 @@ public final class ReactorNettyClient implements Client {
         }
 
         if (message.getClass() == NoticeResponse.class) {
+
             this.settings.getNoticeLogLevel().log(logger, () -> this.context.getMessage(String.format("Notice: %s", toString(((NoticeResponse) message).getFields()))));
+            return true;
         }
 
         if (message.getClass() == BackendKeyData.class) {
@@ -310,17 +277,6 @@ public final class ReactorNettyClient implements Client {
             this.processId = backendKeyData.getProcessId();
             this.context = this.context.withProcessId(this.processId);
             this.secretKey = backendKeyData.getSecretKey();
-            return true;
-        }
-
-        if (message.getClass() == NegotiateProtocolVersion.class) {
-
-            if (DEBUG_ENABLED) {
-                NegotiateProtocolVersion negotiate = (NegotiateProtocolVersion) message;
-                logger.debug(this.context.getMessage(String.format("Server negotiated protocol minor version 3.%d, unsupported protocol options: %s", negotiate.getProtocolMinorVersion(),
-                    negotiate.getUnsupportedOptions())));
-            }
-
             return true;
         }
 
@@ -346,32 +302,24 @@ public final class ReactorNettyClient implements Client {
 
     private void handleParameterStatus(ParameterStatus message) {
 
-        String name = message.getName();
+        Version existingVersion = this.version;
 
-        if (name.equals("server_version_num") || name.equals("server_version")) {
-            Version existingVersion = this.version;
+        String versionString = existingVersion.getVersion();
+        int versionNum = existingVersion.getVersionNumber();
 
-            String versionString = existingVersion.getVersion();
-            int versionNum = existingVersion.getVersionNumber();
-
-            if (name.equals("server_version_num")) {
-                versionNum = Integer.parseInt(message.getValue());
-            }
-
-            if (name.equals("server_version")) {
-                versionString = message.getValue();
-
-                if (versionNum == 0) {
-                    versionNum = Version.parseServerVersionStr(versionString);
-                }
-            }
-
-            this.version = new Version(versionString, versionNum);
+        if (message.getName().equals("server_version_num")) {
+            versionNum = Integer.parseInt(message.getValue());
         }
 
-        if (name.equals("TimeZone")) {
-            this.timeZone = TimeZoneUtils.parseBackendTimeZone(message.getValue());
+        if (message.getName().equals("server_version")) {
+            versionString = message.getValue();
+
+            if (versionNum == 0) {
+                versionNum = Version.parseServerVersionStr(versionString);
+            }
         }
+
+        this.version = new Version(versionString, versionNum);
     }
 
     /**
@@ -384,7 +332,7 @@ public final class ReactorNettyClient implements Client {
     public static Mono<ReactorNettyClient> connect(String host, int port) {
         Assert.requireNonNull(host, "host must not be null");
 
-        return connect(host, port, null, SSLConfig.disabled());
+        return connect(host, port, null, new SSLConfig(SSLMode.DISABLE, null, null));
     }
 
     /**
@@ -424,7 +372,7 @@ public final class ReactorNettyClient implements Client {
         }
 
         if (socketAddress instanceof InetSocketAddress) {
-            tcpClient = tcpClient.resolver(it -> it.roundRobinSelection(true));
+            tcpClient = tcpClient.resolver(BalancedResolverGroup.INSTANCE);
             tcpClient = tcpClient.option(ChannelOption.SO_KEEPALIVE, settings.isTcpKeepAlive());
             tcpClient = tcpClient.option(ChannelOption.TCP_NODELAY, settings.isTcpNoDelay());
         }
@@ -433,8 +381,9 @@ public final class ReactorNettyClient implements Client {
             tcpClient = tcpClient.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, settings.getConnectTimeoutMs());
         }
 
-        return tcpClient.doOnChannelInit((observer, channel, remoteAddress) -> {
-            ChannelPipeline pipeline = channel.pipeline();
+        return tcpClient.connect().flatMap(it -> {
+
+            ChannelPipeline pipeline = it.channel().pipeline();
 
             InternalLogger logger = InternalLoggerFactory.getInstance(ReactorNettyClient.class);
             if (logger.isTraceEnabled()) {
@@ -442,33 +391,33 @@ public final class ReactorNettyClient implements Client {
                     new LoggingHandler(ReactorNettyClient.class, LogLevel.TRACE));
             }
 
-            registerSslHandler(socketAddress, settings.getSslConfig(), channel);
-        }).connect().flatMap(it ->
-            getSslHandshake(it.channel()).thenReturn(new ReactorNettyClient(it, settings))
-        );
+            return registerSslHandler(settings.getSslConfig(), it).thenReturn(new ReactorNettyClient(it, settings));
+        });
     }
 
-    private static void registerSslHandler(SocketAddress socketAddress, SSLConfig sslConfig, Channel channel) {
+    private static Mono<? extends Void> registerSslHandler(SSLConfig sslConfig, Connection it) {
+
         try {
             if (sslConfig.getSslMode().startSsl()) {
 
-                AbstractPostgresSSLHandlerAdapter sslAdapter;
-                if (sslConfig.isDirectSsl()) {
-                    sslAdapter = new DirectSSLHandlerAdapter(channel.alloc(), socketAddress, sslConfig);
-                } else {
-                    sslAdapter = new SSLSessionHandlerAdapter(channel.alloc(), socketAddress, sslConfig);
-                }
+                return Mono.defer(() -> {
+                    AbstractPostgresSSLHandlerAdapter sslAdapter;
+                    if (sslConfig.getSslMode() == SSLMode.TUNNEL) {
+                        sslAdapter = new SSLTunnelHandlerAdapter(it.outbound().alloc(), sslConfig);
+                    } else {
+                        sslAdapter = new SSLSessionHandlerAdapter(it.outbound().alloc(), sslConfig);
+                    }
 
-                channel.pipeline().addFirst(sslAdapter);
+                    it.addHandlerFirst(sslAdapter);
+                    return sslAdapter.getHandshake();
+
+                }).subscribeOn(Schedulers.boundedElastic());
             }
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
-    }
 
-    private static Mono<Void> getSslHandshake(Channel channel) {
-        AbstractPostgresSSLHandlerAdapter sslAdapter = channel.pipeline().get(AbstractPostgresSSLHandlerAdapter.class);
-        return (sslAdapter != null) ? sslAdapter.getHandshake() : Mono.empty();
+        return Mono.empty();
     }
 
     @Override
@@ -477,8 +426,8 @@ public final class ReactorNettyClient implements Client {
     }
 
     @Override
-    public void addNotificationListener(Subscriber<NotificationResponse> consumer) {
-        this.notificationProcessor.asFlux().subscribe(consumer);
+    public Disposable addNotificationListener(Subscriber<NotificationResponse> consumer) {
+        return this.notificationProcessor.asFlux().subscribe(consumer::onNext, consumer::onError, consumer::onComplete, consumer::onSubscribe);
     }
 
     @Override
@@ -497,18 +446,8 @@ public final class ReactorNettyClient implements Client {
     }
 
     @Override
-    public Scheduler getScheduler() {
-        return this.scheduler;
-    }
-
-    @Override
-    public Optional<byte[]> getSecretKey() {
+    public Optional<Integer> getSecretKey() {
         return Optional.ofNullable(this.secretKey);
-    }
-
-    @Override
-    public Optional<TimeZone> getTimeZone() {
-        return Optional.ofNullable(this.timeZone);
     }
 
     @Override
@@ -535,7 +474,7 @@ public final class ReactorNettyClient implements Client {
     public Mono<Void> cancelRequest() {
         return Mono.defer(() -> {
             int processId = this.getProcessId().orElseThrow(() -> new IllegalStateException("Connection does not yet have a processId"));
-            byte[] secretKey = this.getSecretKey().orElseThrow(() -> new IllegalStateException("Connection does not yet have a secretKey"));
+            int secretKey = this.getSecretKey().orElseThrow(() -> new IllegalStateException("Connection does not yet have a secretKey"));
 
             return ReactorNettyClient.connect(this.connection.channel().remoteAddress(), this.settings)
                 .flatMap(client -> CancelRequestMessageFlow.exchange(client, processId, secretKey).then(Mono.defer(client::closeConnection))
@@ -555,9 +494,9 @@ public final class ReactorNettyClient implements Client {
 
     private void handleClose() {
         if (this.isClosed.compareAndSet(false, true)) {
-            drainError(unexpected);
+            drainError(UNEXPECTED);
         } else {
-            drainError(expected);
+            drainError(EXPECTED);
         }
     }
 
@@ -567,7 +506,7 @@ public final class ReactorNettyClient implements Client {
             drainError(() -> this.messageSubscriber.createClientClosedException(error));
         }
 
-        drainError(() -> new PostgresConnectionException(this.context, error));
+        drainError(() -> new PostgresConnectionException(error));
     }
 
     private void drainError(Supplier<? extends Throwable> supplier) {
@@ -625,8 +564,8 @@ public final class ReactorNettyClient implements Client {
 
         private final static ErrorDetails ERROR_DETAILS = ErrorDetails.fromCodeAndMessage(CONNECTION_FAILURE, "An I/O error occurred while sending to the backend or receiving from the backend");
 
-        public PostgresConnectionException(ConnectionContext context, Throwable cause) {
-            super(context.getMessage(ERROR_DETAILS.getMessage()), ERROR_DETAILS.getCode(), 0, null, cause);
+        public PostgresConnectionException(Throwable cause) {
+            super(ERROR_DETAILS.getMessage(), ERROR_DETAILS.getCode(), 0, null, cause);
         }
 
         @Override
@@ -726,7 +665,6 @@ public final class ReactorNettyClient implements Client {
 
             if (this.sink.isCancelled()) {
                 ReferenceCountUtil.release(item);
-                return;
             }
 
             decrementDemand();
@@ -809,7 +747,7 @@ public final class ReactorNettyClient implements Client {
         }
 
         PostgresConnectionClosedException createClientClosedException(@Nullable Throwable cause) {
-            return new PostgresConnectionClosedException(ReactorNettyClient.this.context.getMessage("Cannot exchange messages because the connection is closed"), cause);
+            return new PostgresConnectionClosedException("Cannot exchange messages because the connection is closed", cause);
         }
 
         /**
@@ -852,26 +790,11 @@ public final class ReactorNettyClient implements Client {
 
             this.demand.decrementAndGet();
 
-            // fast-path: emit directly while holding the drain guard so we cannot overtake an item that a
-            // concurrent drain (triggered by demand on another thread) has polled from the buffer but not yet
-            // emitted.
-            if (this.buffer.isEmpty() && this.drain.compareAndSet(false, true)) {
-
-                Conversation conversation = null;
-                boolean emitted = false;
-                try {
-                    if (this.buffer.isEmpty()) {
-                        conversation = this.conversations.peek();
-                        if (conversation != null && conversation.hasDemand()) {
-                            emit(conversation, message);
-                            emitted = true;
-                        }
-                    }
-                } finally {
-                    this.drain.compareAndSet(true, false);
-                }
-
-                if (emitted) {
+            // fast-path
+            if (this.buffer.isEmpty()) {
+                Conversation conversation = this.conversations.peek();
+                if (conversation != null && conversation.hasDemand()) {
+                    emit(conversation, message);
                     potentiallyDemandMore(conversation);
                     return;
                 }
@@ -929,7 +852,7 @@ public final class ReactorNettyClient implements Client {
         @Override
         public Context currentContext() {
             Conversation receiver = this.conversations.peek();
-            return receiver != null ? Context.of(receiver.sink.contextView()) : Context.empty();
+            return receiver != null ? receiver.sink.currentContext() : Context.empty();
         }
 
         private void tryDrainLoop() {
@@ -1032,19 +955,9 @@ public final class ReactorNettyClient implements Client {
                 receiver.onError(supplier.get());
             }
 
-            // Drain the buffer under the single-consumer guard. The buffer is an Spsc queue to avoid double-releasing it (IllegalReferenceCountException).
-            do {
-                if (this.drain.compareAndSet(false, true)) {
-                    try {
-                        BackendMessage message;
-                        while ((message = this.buffer.poll()) != null) {
-                            ReferenceCountUtil.release(message);
-                        }
-                    } finally {
-                        this.drain.compareAndSet(true, false);
-                    }
-                }
-            } while (!this.buffer.isEmpty());
+            while (!this.buffer.isEmpty()) {
+                ReferenceCountUtil.release(this.buffer.poll());
+            }
         }
 
     }

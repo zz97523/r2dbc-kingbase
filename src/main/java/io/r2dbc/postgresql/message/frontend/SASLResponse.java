@@ -22,6 +22,7 @@ import io.r2dbc.postgresql.util.Assert;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
@@ -46,6 +47,7 @@ public final class SASLResponse implements FrontendMessage {
      */
     public SASLResponse(ByteBuffer data) {
         Assert.requireNonNull(data, "data must not be null");
+        ((Buffer) data).flip();
         this.data = data;
     }
 

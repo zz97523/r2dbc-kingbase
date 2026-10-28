@@ -77,12 +77,6 @@ final class KingbaseOracleTextBinaryCodecs {
 
         @Override
         public EncodedParameter encode(Object value) {
-            String s = (String) value;
-            // When parameter type cannot be inferred by the driver (dataType = 0),
-            // bind JSON strings with JSON OID; otherwise bind as VARCHAR2/text.
-            if (looksLikeJson(s)) {
-                return encode(value, this.typeOids.encodeJson());
-            }
             return encode(value, this.typeOids.encodeText());
         }
 
@@ -92,14 +86,6 @@ final class KingbaseOracleTextBinaryCodecs {
             return encodeText(this.allocator, oid, (String) value);
         }
 
-        private static boolean looksLikeJson(String value) {
-            if (value == null) {
-                return false;
-            }
-            String trimmed = value.trim();
-            return (trimmed.startsWith("{") && trimmed.endsWith("}"))
-                || (trimmed.startsWith("[") && trimmed.endsWith("]"));
-        }
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -120,8 +106,8 @@ final class KingbaseOracleTextBinaryCodecs {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-            return Arrays.asList(VARCHAR, TEXT, BPCHAR);
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Arrays.<PostgresTypeIdentifier>asList(VARCHAR, TEXT, BPCHAR);
         }
 
         @Override

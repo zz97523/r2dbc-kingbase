@@ -24,14 +24,11 @@ import io.r2dbc.postgresql.message.backend.DataRow;
 import io.r2dbc.postgresql.message.backend.RowDescription;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.spi.Row;
-import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -46,23 +43,15 @@ final class PostgresqlRow implements io.r2dbc.postgresql.api.PostgresqlRow {
 
     private final List<RowDescription.Field> fields;
 
-    private final @Nullable ByteBuf[] data;
+    private final ByteBuf[] data;
 
     private volatile boolean isReleased = false;
-
-    private final Map<String, Integer> columnNameIndexCacheMap;
 
     PostgresqlRow(ConnectionResources context, io.r2dbc.postgresql.api.PostgresqlRowMetadata metadata, List<RowDescription.Field> fields, ByteBuf[] data) {
         this.context = Assert.requireNonNull(context, "context must not be null");
         this.metadata = Assert.requireNonNull(metadata, "metadata must not be null");
         this.fields = Assert.requireNonNull(fields, "fields must not be null");
         this.data = Assert.requireNonNull(data, "data must not be null");
-
-        if (metadata instanceof PostgresqlRowMetadata) {
-            this.columnNameIndexCacheMap = ((PostgresqlRowMetadata) metadata).getColumnNameIndexMap();
-        } else {
-            this.columnNameIndexCacheMap = createColumnNameIndexMap(this.fields);
-        }
     }
 
     @Override
@@ -77,21 +66,23 @@ final class PostgresqlRow implements io.r2dbc.postgresql.api.PostgresqlRow {
         return Objects.equals(this.fields, that.fields);
     }
 
+    @Nullable
     @Override
-    public <T> @Nullable T get(int index, Class<T> type) {
+    public <T> T get(int index, Class<T> type) {
         Assert.requireNonNull(type, "type must not be null");
         requireNotReleased();
 
-        return decode(getColumn(index), null, type);
+        return decode(getColumn(index), type);
     }
 
+    @Nullable
     @Override
-    public <T> @Nullable T get(String name, Class<T> type) {
+    public <T> T get(String name, Class<T> type) {
         Assert.requireNonNull(name, "name must not be null");
         Assert.requireNonNull(type, "type must not be null");
         requireNotReleased();
 
-        return decode(getColumn(name), name, type);
+        return decode(getColumn(name), type);
     }
 
     @Override
@@ -100,23 +91,9 @@ final class PostgresqlRow implements io.r2dbc.postgresql.api.PostgresqlRow {
     }
 
     @Nullable
-    @SuppressWarnings("unchecked")
-    private <T> T decode(int index, @Nullable String name, Class<T> type) {
+    private <T> T decode(int index, Class<T> type) {
         ByteBuf data = this.data[index];
         if (data == null) {
-            if (type.isPrimitive()) {
-
-                String message;
-                if (name != null) {
-                    message = String.format("Value at column '%s' is null. Cannot return value for primitive '%s'", name,
-                        type.getName());
-                } else {
-                    message = String.format("Value at column index %d is null. Cannot return value for primitive '%s'", index,
-                        type.getName());
-                }
-
-                throw new NullPointerException(message);
-            }
             return null;
         }
 
@@ -126,15 +103,15 @@ final class PostgresqlRow implements io.r2dbc.postgresql.api.PostgresqlRow {
 
             T decoded = this.context.getCodecs().decode(data, field.getDataType(), field.getFormat(), type);
 
-            Object result = postProcessResult(decoded);
-            return type.isPrimitive() ? (T) result : type.cast(result);
+            return type.cast(postProcessResult(decoded));
 
         } finally {
             data.readerIndex(readerIndex);
         }
     }
 
-    private @Nullable Object postProcessResult(@Nullable Object decoded) {
+    @Nullable
+    private Object postProcessResult(@Nullable Object decoded) {
 
         if (decoded instanceof RefCursor) {
             return createCursor((RefCursor) decoded);
@@ -159,15 +136,6 @@ final class PostgresqlRow implements io.r2dbc.postgresql.api.PostgresqlRow {
             ", columns=" + this.fields +
             ", isReleased=" + this.isReleased +
             '}';
-    }
-
-    static Map<String, Integer> createColumnNameIndexMap(List<RowDescription.Field> fields) {
-        Map<String, Integer> columnNameIndexMap = new HashMap<>(fields.size(), 1);
-        for (int i = fields.size() - 1; i >= 0; i--) {
-            columnNameIndexMap.put(fields.get(i).getName().toLowerCase(Locale.ROOT), i);
-        }
-
-        return columnNameIndexMap;
     }
 
     static PostgresqlRow toRow(ConnectionResources context, DataRow dataRow, Codecs codecs, RowDescription rowDescription) {
@@ -197,9 +165,12 @@ final class PostgresqlRow implements io.r2dbc.postgresql.api.PostgresqlRow {
     }
 
     private int getColumn(String name) {
-        Integer index = this.columnNameIndexCacheMap.get(name.toLowerCase(Locale.ROOT));
-        if (index != null) {
-            return index;
+        for (int i = 0; i < this.fields.size(); i++) {
+            RowDescription.Field field = this.fields.get(i);
+
+            if (field.getName().equalsIgnoreCase(name)) {
+                return i;
+            }
         }
 
         throw new NoSuchElementException(String.format("Column name '%s' does not exist in column names %s", name, toColumnNames()));

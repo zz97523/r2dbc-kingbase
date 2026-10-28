@@ -20,9 +20,9 @@ import io.r2dbc.postgresql.client.Binding;
 import io.r2dbc.postgresql.client.Client;
 import io.r2dbc.postgresql.client.ExtendedQueryMessageFlow;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
 import reactor.util.Logger;
 import reactor.util.Loggers;
+import reactor.util.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -137,11 +137,11 @@ final class BoundedStatementCache implements StatementCache {
     /**
      * Synchronized cache access: Retrieve statement name by key.
      *
-     * @param key Cache key
-     * @see CacheKey
+     * @param key
      * @return statement name by key
      */
-    private @Nullable String get(CacheKey key) {
+    @Nullable
+    private String get(CacheKey key) {
         synchronized (this.cache) {
             return this.cache.get(key);
         }

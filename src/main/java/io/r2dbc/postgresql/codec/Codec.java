@@ -19,7 +19,7 @@ package io.r2dbc.postgresql.codec;
 import io.netty.buffer.ByteBuf;
 import io.r2dbc.postgresql.client.EncodedParameter;
 import io.r2dbc.postgresql.message.Format;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * Codec to encode and decode values based on Postgres OIDs and {@link Format}.

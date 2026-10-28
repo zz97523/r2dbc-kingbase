@@ -40,20 +40,20 @@ final class PostgresqlConnectionConfigurationUnitTests {
     }
 
     @Test
-    void builderNoHostConfiguration() {
+    void builderNoHostAndSocket() {
         assertThatIllegalArgumentException().isThrownBy(() -> PostgresqlConnectionConfiguration.builder().build())
-            .withMessage("Connection must be configured for either multi-host or single host connectivity");
+            .withMessage("host or socket must not be null");
     }
 
     @Test
     void builderHostAndSocket() {
         assertThatIllegalArgumentException().isThrownBy(() -> PostgresqlConnectionConfiguration.builder().host("host").socket("socket").build())
-            .withMessageContaining("Connection must be configured for either host/port or socket usage but not both");
+            .withMessageContaining("either host/port or socket");
     }
 
     @Test
     void builderNoUsername() {
-        assertThatIllegalArgumentException().isThrownBy(() -> PostgresqlConnectionConfiguration.builder().username((String) null))
+        assertThatIllegalArgumentException().isThrownBy(() -> PostgresqlConnectionConfiguration.builder().username(null))
             .withMessage("username must not be null");
     }
 
@@ -82,9 +82,11 @@ final class PostgresqlConnectionConfigurationUnitTests {
             .hasFieldOrPropertyWithValue("applicationName", "test-application-name")
             .hasFieldOrPropertyWithValue("connectTimeout", Duration.ofMillis(1000))
             .hasFieldOrPropertyWithValue("database", "test-database")
-            .hasFieldOrPropertyWithValue("singleHostConfiguration.host", "test-host")
+            .hasFieldOrPropertyWithValue("host", "test-host")
             .hasFieldOrProperty("options")
-            .hasFieldOrPropertyWithValue("singleHostConfiguration.port", 100)
+            .hasFieldOrPropertyWithValue("password", null)
+            .hasFieldOrPropertyWithValue("port", 100)
+            .hasFieldOrPropertyWithValue("username", "test-username")
             .hasFieldOrProperty("sslConfig")
             .hasFieldOrPropertyWithValue("tcpKeepAlive", true)
             .hasFieldOrPropertyWithValue("tcpNoDelay", false)
@@ -112,9 +114,11 @@ final class PostgresqlConnectionConfigurationUnitTests {
             .hasFieldOrPropertyWithValue("applicationName", "test-application-name")
             .hasFieldOrPropertyWithValue("connectTimeout", Duration.ofMillis(1000))
             .hasFieldOrPropertyWithValue("database", "test-database")
-            .hasFieldOrPropertyWithValue("singleHostConfiguration.host", "test-host")
+            .hasFieldOrPropertyWithValue("host", "test-host")
             .hasFieldOrProperty("options")
-            .hasFieldOrPropertyWithValue("singleHostConfiguration.port", 100)
+            .hasFieldOrPropertyWithValue("password", null)
+            .hasFieldOrPropertyWithValue("port", 100)
+            .hasFieldOrPropertyWithValue("username", "test-username")
             .hasFieldOrProperty("sslConfig")
             .hasFieldOrPropertyWithValue("tcpKeepAlive", true)
             .hasFieldOrPropertyWithValue("tcpNoDelay", false)
@@ -155,34 +159,18 @@ final class PostgresqlConnectionConfigurationUnitTests {
         assertThat(configuration)
             .hasFieldOrPropertyWithValue("applicationName", "r2dbc-postgresql")
             .hasFieldOrPropertyWithValue("database", "test-database")
-            .hasFieldOrPropertyWithValue("singleHostConfiguration.host", "test-host")
-            .hasFieldOrPropertyWithValue("singleHostConfiguration.port", 5432)
+            .hasFieldOrPropertyWithValue("host", "test-host")
+            .hasFieldOrPropertyWithValue("password", "test-password")
+            .hasFieldOrPropertyWithValue("port", 5432)
             .hasFieldOrProperty("options")
+            .hasFieldOrPropertyWithValue("username", "test-username")
             .hasFieldOrProperty("sslConfig")
             .hasFieldOrPropertyWithValue("tcpKeepAlive", false)
             .hasFieldOrPropertyWithValue("tcpNoDelay", true)
-            .hasFieldOrPropertyWithValue("maxMessageSize", Integer.MAX_VALUE - 5)
             .hasFieldOrPropertyWithValue("loopResources", null);
 
         assertThat(configuration.getOptions())
             .containsEntry("search_path", "test-schema");
-    }
-
-    @Test
-    void builderMaxMessageSize() {
-        PostgresqlConnectionConfiguration configuration = PostgresqlConnectionConfiguration.builder()
-            .host("test-host")
-            .username("test-username")
-            .maxMessageSize(1024)
-            .build();
-
-        assertThat(configuration).hasFieldOrPropertyWithValue("maxMessageSize", 1024);
-    }
-
-    @Test
-    void builderRejectsNonPositiveMaxMessageSize() {
-        assertThatIllegalArgumentException().isThrownBy(() -> PostgresqlConnectionConfiguration.builder().maxMessageSize(0))
-            .withMessage("maxMessageSize must be greater than zero");
     }
 
     @Test
@@ -192,16 +180,6 @@ final class PostgresqlConnectionConfigurationUnitTests {
             .password("test-password")
             .build())
             .withMessage("username must not be null");
-    }
-
-    @Test
-    void constructorNoPassword() {
-        PostgresqlConnectionConfiguration configuration = PostgresqlConnectionConfiguration.builder()
-            .host("test-host")
-            .username("foo")
-            .build();
-
-        assertThat(configuration.getPassword()).isNotNull();
     }
 
     @Test

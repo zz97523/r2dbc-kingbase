@@ -117,9 +117,7 @@ final class FluxDiscardOnCancelUnitTests {
             .thenCancel()
             .verify();
 
-        // some prefetch is happening here. Was different in Reactor 3.5.0
-        //assertThat(items).toIterable().containsSequence(2, 3);
-        assertThat(items).toIterable().containsSequence(3);
+        assertThat(items).toIterable().containsSequence(2, 3);
     }
 
     @Test

@@ -22,7 +22,7 @@ import io.r2dbc.postgresql.client.EncodedParameter;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -109,8 +109,8 @@ public final class StringCodec extends AbstractCodec<String> implements ArrayCod
     }
 
     @Override
-    public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-        return Stream.concat(Stream.of(this.defaultType), SUPPORTED_TYPES.stream()).collect(Collectors.toSet());
+    public Iterable<PostgresTypeIdentifier> getDataTypes() {
+        return Stream.concat(Stream.of(this.defaultType), SUPPORTED_TYPES.stream()).map(PostgresTypeIdentifier.class::cast).collect(Collectors.toSet());
     }
 
     private static class StringDecoder implements Codec<String>, Decoder<String> {

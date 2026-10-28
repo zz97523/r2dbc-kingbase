@@ -26,7 +26,7 @@ import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nullable;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -79,7 +79,7 @@ final class KingbaseSqlServerBooleanCodec implements Codec<Boolean>, CodecMetada
     }
 
     @Override
-    public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+    public Iterable<PostgresTypeIdentifier> getDataTypes() {
         return Collections.singleton((PostgresTypeIdentifier) () -> this.typeOids.encodeBitAsInt());
     }
 
@@ -88,6 +88,9 @@ final class KingbaseSqlServerBooleanCodec implements Codec<Boolean>, CodecMetada
         Assert.requireNonNull(format, "format must not be null");
         Assert.requireNonNull(type, "type must not be null");
 
+        if (type == Object.class) {
+            return this.typeOids.isDefaultBoolean(dataType);
+        }
         if (!(type == Boolean.class || type == Boolean.TYPE)) {
             return false;
         }

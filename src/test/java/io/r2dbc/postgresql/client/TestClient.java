@@ -22,20 +22,17 @@ import io.r2dbc.postgresql.message.backend.NotificationResponse;
 import io.r2dbc.postgresql.message.frontend.FrontendMessage;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.TestByteBufAllocator;
-import org.jspecify.annotations.Nullable;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Sinks;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
+import reactor.util.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.TimeZone;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -45,6 +42,7 @@ import static io.r2dbc.postgresql.client.TransactionStatus.IDLE;
 /**
  * Test {@link Client} implementation that allows specification of expectations and assertions.
  */
+@SuppressWarnings("deprecation")
 public final class TestClient implements Client {
 
     public static final TestClient NO_OP = new TestClient(false, true, null, null, Flux.empty(), IDLE, new Version("9.4"));
@@ -53,21 +51,23 @@ public final class TestClient implements Client {
 
     private final boolean connected;
 
-    private final Sinks.Many<NotificationResponse> notificationProcessor = Sinks.many().multicast().onBackpressureBuffer();
+    private final reactor.core.publisher.EmitterProcessor<NotificationResponse> notificationProcessor = reactor.core.publisher.EmitterProcessor.create(false);
 
     private final Integer processId;
 
-    private final Sinks.Many<FrontendMessage> requestProcessor = Sinks.many().multicast().onBackpressureBuffer();
+    private final reactor.core.publisher.EmitterProcessor<FrontendMessage> requestProcessor = reactor.core.publisher.EmitterProcessor.create(false);
 
-    private final Sinks.Many<Flux<BackendMessage>> responseProcessor = Sinks.many().replay().all();
+    private final FluxSink<FrontendMessage> requests = this.requestProcessor.sink();
 
-    private final byte[] secretKey;
+    private final reactor.core.publisher.EmitterProcessor<Flux<BackendMessage>> responseProcessor = reactor.core.publisher.EmitterProcessor.create(false);
+
+    private final Integer secretKey;
 
     private final TransactionStatus transactionStatus;
 
     private final Version version;
 
-    private TestClient(boolean expectClose, boolean connected, @Nullable Integer processId, @Nullable byte[] secretKey, Flux<Window> windows, TransactionStatus transactionStatus, Version version) {
+    private TestClient(boolean expectClose, boolean connected, @Nullable Integer processId, @Nullable Integer secretKey, Flux<Window> windows, TransactionStatus transactionStatus, Version version) {
         this.expectClose = expectClose;
         this.connected = connected;
         this.processId = processId;
@@ -75,12 +75,14 @@ public final class TestClient implements Client {
         this.transactionStatus = Assert.requireNonNull(transactionStatus, "transactionStatus must not be null");
         this.version = version;
 
+        FluxSink<Flux<BackendMessage>> responses = this.responseProcessor.sink();
+
         Assert.requireNonNull(windows, "windows must not be null")
             .map(window -> window.exchanges)
             .map(exchanges -> exchanges
                 .concatMap(exchange ->
 
-                    this.requestProcessor.asFlux().zipWith(exchange.requests)
+                    this.requestProcessor.zipWith(exchange.requests)
                         .handle((tuple, sink) -> {
                             FrontendMessage actual = tuple.getT1();
                             FrontendMessage expected = tuple.getT2();
@@ -90,7 +92,7 @@ public final class TestClient implements Client {
                             }
                         })
                         .thenMany(exchange.responses)))
-            .subscribe(this.responseProcessor::tryEmitNext, this.responseProcessor::tryEmitError, this.responseProcessor::tryEmitComplete);
+            .subscribe(responses::next, responses::error, responses::complete);
     }
 
     public static Builder builder() {
@@ -106,20 +108,20 @@ public final class TestClient implements Client {
     public Flux<BackendMessage> exchange(Publisher<FrontendMessage> requests) {
         Assert.requireNonNull(requests, "requests must not be null");
 
-        return this.responseProcessor.asFlux()
+        return this.responseProcessor
             .doOnSubscribe(s ->
                 Flux.from(requests)
-                    .subscribe(this.requestProcessor::tryEmitNext, this.requestProcessor::tryEmitError))
+                    .subscribe(this.requests::next, this.requests::error))
             .next()
             .flatMapMany(Function.identity());
     }
 
     @Override
     public Flux<BackendMessage> exchange(Predicate<BackendMessage> takeUntil, Publisher<FrontendMessage> requests) {
-        return this.responseProcessor.asFlux()
+        return this.responseProcessor
             .doOnSubscribe(s ->
                 Flux.from(requests)
-                    .subscribe(this.requestProcessor::tryEmitNext, this.requestProcessor::tryEmitError))
+                    .subscribe(this.requests::next, this.requests::error))
             .next()
             .flatMapMany(Function.identity())
             .takeWhile(takeUntil.negate());
@@ -141,18 +143,8 @@ public final class TestClient implements Client {
     }
 
     @Override
-    public Scheduler getScheduler() {
-        return Schedulers.immediate();
-    }
-
-    @Override
-    public Optional<byte[]> getSecretKey() {
+    public Optional<Integer> getSecretKey() {
         return Optional.ofNullable(this.secretKey);
-    }
-
-    @Override
-    public Optional<TimeZone> getTimeZone() {
-        return Optional.empty();
     }
 
     @Override
@@ -177,21 +169,21 @@ public final class TestClient implements Client {
 
     @Override
     public void send(FrontendMessage message) {
-        this.requestProcessor.tryEmitNext(message);
+        this.requests.next(message);
     }
 
     @Override
     public Disposable addNotificationListener(Consumer<NotificationResponse> consumer) {
-        return this.notificationProcessor.asFlux().subscribe(consumer);
+        return this.notificationProcessor.subscribe(consumer);
     }
 
     @Override
-    public void addNotificationListener(Subscriber<NotificationResponse> consumer) {
-        this.notificationProcessor.asFlux().subscribe(consumer);
+    public Disposable addNotificationListener(Subscriber<NotificationResponse> consumer) {
+        return this.notificationProcessor.subscribe(consumer::onNext, consumer::onError, consumer::onComplete, consumer::onSubscribe);
     }
 
     public void notify(NotificationResponse notification) {
-        this.notificationProcessor.tryEmitNext(notification);
+        this.notificationProcessor.onNext(notification);
     }
 
     public static final class Builder {
@@ -204,7 +196,7 @@ public final class TestClient implements Client {
 
         private Integer processId = null;
 
-        private byte[] secretKey = null;
+        private Integer secretKey = null;
 
         private TransactionStatus transactionStatus = IDLE;
 
@@ -244,7 +236,7 @@ public final class TestClient implements Client {
             return this;
         }
 
-        public Builder secretKey(byte[] secretKey) {
+        public Builder secretKey(Integer secretKey) {
             this.secretKey = Assert.requireNonNull(secretKey, "secretKey must not be null");
             return this;
         }
@@ -334,10 +326,10 @@ public final class TestClient implements Client {
                 return this.chain;
             }
 
-            public Exchange.Builder<Builder<T>> expectRequest(FrontendMessage... requests) {
-                Assert.requireNonNull(requests, "requests must not be null");
+            public Exchange.Builder<Builder<T>> expectRequest(FrontendMessage request) {
+                Assert.requireNonNull(request, "request must not be null");
 
-                Exchange.Builder<Builder<T>> exchange = new Exchange.Builder<>(this, requests);
+                Exchange.Builder<Builder<T>> exchange = new Exchange.Builder<>(this, request);
                 this.exchanges.add(exchange);
                 return exchange;
             }

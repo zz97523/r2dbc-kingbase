@@ -21,24 +21,21 @@ import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.client.EncodedParameter;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
-import java.util.function.Supplier;
 
 final class DateCodec extends AbstractCodec<Date> implements ArrayCodecDelegate<Date> {
 
     private final LocalDateTimeCodec delegate;
 
-    private final Supplier<ZoneId> zoneIdSupplier;
-
-    DateCodec(ByteBufAllocator byteBufAllocator, Supplier<ZoneId> zoneIdSupplier) {
+    DateCodec(ByteBufAllocator byteBufAllocator) {
         super(Date.class);
 
-        this.delegate = new LocalDateTimeCodec(byteBufAllocator, zoneIdSupplier);
-        this.zoneIdSupplier = Assert.requireNonNull(zoneIdSupplier, "zoneIdSupplier must not be null");
+        Assert.requireNonNull(byteBufAllocator, "byteBufAllocator must not be null");
+        this.delegate = new LocalDateTimeCodec(byteBufAllocator);
     }
 
     @Override
@@ -64,7 +61,7 @@ final class DateCodec extends AbstractCodec<Date> implements ArrayCodecDelegate<
         Assert.requireNonNull(buffer, "byteBuf must not be null");
 
         LocalDateTime intermediary = this.delegate.doDecode(buffer, dataType, format, LocalDateTime.class);
-        return Date.from(intermediary.atZone(this.zoneIdSupplier.get()).toInstant());
+        return Date.from(intermediary.atZone(ZoneId.systemDefault()).toInstant());
     }
 
     @Override
@@ -93,8 +90,8 @@ final class DateCodec extends AbstractCodec<Date> implements ArrayCodecDelegate<
         return this.delegate.getArrayDataType();
     }
 
-    private LocalDateTime normalize(Date value) {
-        return value.toInstant().atZone(this.zoneIdSupplier.get()).toLocalDateTime();
+    private static LocalDateTime normalize(Date value) {
+        return value.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 
 }

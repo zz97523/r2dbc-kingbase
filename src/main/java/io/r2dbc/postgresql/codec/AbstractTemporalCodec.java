@@ -21,13 +21,15 @@ import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.Temporal;
 import java.util.EnumSet;
 import java.util.Set;
@@ -45,7 +47,7 @@ import static io.r2dbc.postgresql.message.Format.FORMAT_BINARY;
  *
  * @param <T> the type that is handled by this {@link Codec}
  */
-abstract class AbstractTemporalCodec<T extends Temporal> extends BuiltinCodecSupport<T> implements PreferredCodec {
+abstract class AbstractTemporalCodec<T extends Temporal> extends BuiltinCodecSupport<T> {
 
     private static final Set<PostgresqlObjectId> SUPPORTED_TYPES = EnumSet.of(DATE, TIMESTAMP, TIMESTAMPTZ, TIME, TIMETZ);
 
@@ -62,8 +64,16 @@ abstract class AbstractTemporalCodec<T extends Temporal> extends BuiltinCodecSup
     }
 
     @Override
-    public boolean isPreferred(int dataType, Format format, Class<?> type) {
-        return isPreferenceType(type) && PostgresqlObjectId.isValid(dataType) && PostgresqlObjectId.valueOf(dataType) == getDefaultType();
+    public boolean canDecode(int dataType, Format format, Class<?> type) {
+        Assert.requireNonNull(format, "format must not be null");
+        Assert.requireNonNull(type, "type must not be null");
+
+        if (type == Object.class) {
+            if (PostgresqlObjectId.isValid(dataType) && PostgresqlObjectId.valueOf(dataType) != getDefaultType()) {
+                return false;
+            }
+        }
+        return super.canDecode(dataType, format, type);
     }
 
     @Override
@@ -108,28 +118,28 @@ abstract class AbstractTemporalCodec<T extends Temporal> extends BuiltinCodecSup
                     return EpochTime.fromLong(buffer.readLong()).toLocalDateTime();
                 }
 
-                return PostgresqlDateTimeFormatter.parseLocalDateTime(ByteBufUtils.decode(buffer));
+                return PostgresqlDateTimeFormatter.parse(ByteBufUtils.decode(buffer), LocalDateTime::from);
             case DATE:
             case DATE_ARRAY:
                 if (FORMAT_BINARY == format) {
                     return LocalDate.ofEpochDay(EpochTime.fromInt(buffer.readInt()).getJavaDays());
                 }
 
-                return PostgresqlDateTimeFormatter.parseLocalDate(ByteBufUtils.decode(buffer));
+                return LocalDate.parse(ByteBufUtils.decode(buffer));
             case TIME:
             case TIME_ARRAY:
                 if (FORMAT_BINARY == format) {
                     return LocalTime.ofNanoOfDay(buffer.readLong() * 1000);
                 }
 
-                return PostgresqlTimeFormatter.parseLocalTime(ByteBufUtils.decode(buffer));
+                return LocalTime.parse(ByteBufUtils.decode(buffer));
             case TIMESTAMPTZ:
             case TIMESTAMPTZ_ARRAY:
                 if (FORMAT_BINARY == format) {
                     return EpochTime.fromLong(buffer.readLong()).toInstant().atOffset(OffsetDateTime.now().getOffset());
                 }
 
-                return PostgresqlDateTimeFormatter.parseOffsetDateTime(ByteBufUtils.decode(buffer));
+                return PostgresqlDateTimeFormatter.parse(ByteBufUtils.decode(buffer), ZonedDateTime::from);
             case TIMETZ:
             case TIMETZ_ARRAY:
                 if (FORMAT_BINARY == format) {
@@ -138,7 +148,7 @@ abstract class AbstractTemporalCodec<T extends Temporal> extends BuiltinCodecSup
                     return OffsetTime.of(LocalTime.ofNanoOfDay(timeNano), ZoneOffset.ofTotalSeconds(offsetSec));
                 }
 
-                return PostgresqlTimeFormatter.parseOffsetTime(ByteBufUtils.decode(buffer));
+                return PostgresqlTimeFormatter.parse(ByteBufUtils.decode(buffer), OffsetTime::from);
         }
 
         throw new UnsupportedOperationException(String.format("Cannot decode value for type %s, format %s", dataType, format));
@@ -156,10 +166,6 @@ abstract class AbstractTemporalCodec<T extends Temporal> extends BuiltinCodecSup
 
     static <T> T potentiallyConvert(Temporal temporal, Class<T> expectedType, Function<Temporal, T> converter) {
         return expectedType.isInstance(temporal) ? expectedType.cast(temporal) : converter.apply(temporal);
-    }
-
-    private static boolean isPreferenceType(Class<?> type) {
-        return type == Object.class || type == Temporal.class;
     }
 
 }

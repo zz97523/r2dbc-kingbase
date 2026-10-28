@@ -21,13 +21,13 @@ import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.r2dbc.postgresql.util.Assert;
-import io.r2dbc.postgresql.util.ByteBufferUtils;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
@@ -120,7 +120,8 @@ public abstract class Json {
      * @param <T>             return type.
      * @return the mapped value. Can be {@code null}.
      */
-    public abstract <T> @Nullable T mapBuffer(Function<ByteBuffer, ? extends T> mappingFunction);
+    @Nullable
+    public abstract <T> T mapBuffer(Function<ByteBuffer, ? extends T> mappingFunction);
 
     /**
      * Returns an object consisting of the result of applying the given
@@ -131,7 +132,8 @@ public abstract class Json {
      * @param <T>             return type.
      * @return the mapped value. Can be {@code null}.
      */
-    public abstract <T> @Nullable T mapByteBuf(Function<ByteBuf, ? extends T> mappingFunction);
+    @Nullable
+    public abstract <T> T mapByteBuf(Function<ByteBuf, ? extends T> mappingFunction);
 
     /**
      * Returns an object consisting of the result of applying the given
@@ -142,7 +144,8 @@ public abstract class Json {
      * @param <T>             return type.
      * @return the mapped value. Can be {@code null}.
      */
-    public abstract <T> @Nullable T mapInputStream(Function<InputStream, ? extends T> mappingFunction);
+    @Nullable
+    public abstract <T> T mapInputStream(Function<InputStream, ? extends T> mappingFunction);
 
     /**
      * Returns the value as {@code byte[]}.
@@ -373,7 +376,9 @@ public abstract class Json {
         public <T> T mapBuffer(Function<ByteBuffer, ? extends T> mappingFunction) {
             assertNotReleased();
 
-            ByteBuffer buffer = ByteBufferUtils.toByteBuffer(this.buffer);
+            ByteBuffer buffer = ByteBuffer.allocate(this.buffer.readableBytes());
+            this.buffer.readBytes(buffer);
+            ((Buffer) buffer).flip();
             release();
 
             return mappingFunction.apply(buffer);

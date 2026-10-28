@@ -53,11 +53,6 @@ public final class MockPostgresqlConnection implements PostgresqlConnection {
     }
 
     @Override
-    public CopyInBuilder copyIn(String sql) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public PostgresqlBatch createBatch() {
         return null;
     }

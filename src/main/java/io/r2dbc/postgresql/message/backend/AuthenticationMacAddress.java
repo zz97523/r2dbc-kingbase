@@ -21,6 +21,9 @@ package io.r2dbc.postgresql.message.backend;
  */
 public final class AuthenticationMacAddress implements AuthenticationMessage {
 
+    /**
+     * A static singleton instance that should always be used.
+     */
     public static final AuthenticationMacAddress INSTANCE = new AuthenticationMacAddress();
 
     private AuthenticationMacAddress() {

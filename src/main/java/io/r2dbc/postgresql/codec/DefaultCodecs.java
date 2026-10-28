@@ -24,14 +24,13 @@ import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.spi.Parameter;
 import io.r2dbc.spi.R2dbcType;
 import io.r2dbc.spi.Type;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
@@ -64,46 +63,33 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
      * @param preferAttachedBuffers whether to prefer attached (pooled) {@link ByteBuf buffers}. Use {@code false} (default) to use detached buffers which minimize the risk of memory leaks.
      */
     public DefaultCodecs(ByteBufAllocator byteBufAllocator, boolean preferAttachedBuffers) {
-        this(byteBufAllocator, preferAttachedBuffers, () -> TimeZone.getDefault().toZoneId());
+        this(byteBufAllocator, preferAttachedBuffers, CachedCodecLookup::new);
     }
 
     /**
      * Create a new instance of {@link DefaultCodecs}.
      *
      * @param byteBufAllocator      the {@link ByteBufAllocator} to use for encoding
-     * @param preferAttachedBuffers whether to prefer attached (pooled) {@link ByteBuf buffers}. Use {@code false} (default) to use detached buffers which minimize the risk of memory leaks.
-     * @param configuration         the {@link CodecConfiguration} to use for encoding/decoding
-     */
-    public DefaultCodecs(ByteBufAllocator byteBufAllocator, boolean preferAttachedBuffers, CodecConfiguration configuration) {
-        this(byteBufAllocator, preferAttachedBuffers, configuration, CachedCodecLookup::new);
-    }
-
-    /**
-     * Create a new instance of {@link DefaultCodecs}.
-     *
-     * @param byteBufAllocator      the {@link ByteBufAllocator} to use for encoding
-     * @param configuration         the {@link CodecConfiguration} to use for encoding/decoding
      * @param preferAttachedBuffers whether to prefer attached (pooled) {@link ByteBuf buffers}. Use {@code false} (default) to use detached buffers which minimize the risk of memory leaks.
      * @param codecLookupFunction   provides the {@link CodecLookup} to use for finding relevant codecs
      */
-    DefaultCodecs(ByteBufAllocator byteBufAllocator, boolean preferAttachedBuffers, CodecConfiguration configuration, Function<CodecRegistry, CodecLookup> codecLookupFunction) {
+    DefaultCodecs(ByteBufAllocator byteBufAllocator, boolean preferAttachedBuffers, Function<CodecRegistry, CodecLookup> codecLookupFunction) {
         Assert.requireNonNull(byteBufAllocator, "byteBufAllocator must not be null");
-        Assert.requireNonNull(configuration, "configuration must not be null");
         Assert.requireNonNull(codecLookupFunction, "codecLookupFunction must not be null");
 
         this.codecLookup = codecLookupFunction.apply(this);
-        this.codecs = getDefaultCodecs(byteBufAllocator, preferAttachedBuffers, configuration);
+        this.codecs = getDefaultCodecs(byteBufAllocator, preferAttachedBuffers);
         this.codecLookup.afterCodecAdded();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static List<Codec<?>> getDefaultCodecs(ByteBufAllocator byteBufAllocator, boolean preferAttachedBuffers, CodecConfiguration configuration) {
+    private static List<Codec<?>> getDefaultCodecs(ByteBufAllocator byteBufAllocator, boolean preferAttachedBuffers) {
 
         List<Codec<?>> codecs = new CopyOnWriteArrayList<>(Arrays.asList(
 
             // Prioritized Codecs
             new StringCodec(byteBufAllocator),
-            new InstantCodec(byteBufAllocator, configuration::getZoneId),
+            new InstantCodec(byteBufAllocator),
             new ZonedDateTimeCodec(byteBufAllocator),
             new BinaryByteBufferCodec(byteBufAllocator),
             new BinaryByteArrayCodec(byteBufAllocator),
@@ -111,14 +97,14 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
             new BigDecimalCodec(byteBufAllocator),
             new BigIntegerCodec(byteBufAllocator),
             new BooleanCodec(byteBufAllocator),
-            new CharacterCodecProvider(byteBufAllocator),
+            new CharacterCodec(byteBufAllocator),
             new DoubleCodec(byteBufAllocator),
             new FloatCodec(byteBufAllocator),
             new InetAddressCodec(byteBufAllocator),
             new IntegerCodec(byteBufAllocator),
             new IntervalCodec(byteBufAllocator),
             new LocalDateCodec(byteBufAllocator),
-            new LocalDateTimeCodec(byteBufAllocator, configuration::getZoneId),
+            new LocalDateTimeCodec(byteBufAllocator),
             new LocalTimeCodec(byteBufAllocator),
             new LongCodec(byteBufAllocator),
             new OffsetDateTimeCodec(byteBufAllocator),
@@ -128,12 +114,6 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
             new UrlCodec(byteBufAllocator),
             new UuidCodec(byteBufAllocator),
             new ZoneIdCodec(byteBufAllocator),
-            new DayOfWeekCodec(byteBufAllocator),
-            new MonthCodec(byteBufAllocator),
-            new MonthDayCodec(byteBufAllocator),
-            new PeriodCodec(byteBufAllocator),
-            new YearCodec(byteBufAllocator),
-            new YearMonthCodec(byteBufAllocator),
 
             // JSON
             new JsonCodec(byteBufAllocator, preferAttachedBuffers),
@@ -145,7 +125,7 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
 
             // Fallback for Object.class
             new ByteCodec(byteBufAllocator),
-            new DateCodec(byteBufAllocator, configuration::getZoneId),
+            new DateCodec(byteBufAllocator),
 
             new BlobCodec(byteBufAllocator),
             new ClobCodec(byteBufAllocator),
@@ -165,7 +145,7 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
             new PolygonCodec(byteBufAllocator)
         ));
 
-        List<Codec<?>> additionalCodecs = new ArrayList<>();
+        List<Codec<?>> defaultArrayCodecs = new ArrayList<>();
 
         for (Codec<?> codec : codecs) {
 
@@ -177,22 +157,18 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
 
                 if (codec instanceof BoxCodec) {
                     // BOX[] uses a ';' as a delimiter (i.e. "{(3.7,4.6),(1.9,2.8);(5,7),(1.5,3.3)}")
-                    additionalCodecs.add(new ArrayCodec(byteBufAllocator, delegate.getArrayDataType(), delegate, componentType, (byte) ';'));
+                    defaultArrayCodecs.add(new ArrayCodec(byteBufAllocator, delegate.getArrayDataType(), delegate, componentType, (byte) ';'));
                 } else if (codec instanceof AbstractNumericCodec) {
-                    additionalCodecs.add(new ConvertingArrayCodec(byteBufAllocator, delegate, componentType, ConvertingArrayCodec.NUMERIC_ARRAY_TYPES));
+                    defaultArrayCodecs.add(new ConvertingArrayCodec(byteBufAllocator, delegate, componentType, ConvertingArrayCodec.NUMERIC_ARRAY_TYPES));
                 } else if (codec instanceof AbstractTemporalCodec) {
-                    additionalCodecs.add(new ConvertingArrayCodec(byteBufAllocator, delegate, componentType, ConvertingArrayCodec.DATE_ARRAY_TYPES));
+                    defaultArrayCodecs.add(new ConvertingArrayCodec(byteBufAllocator, delegate, componentType, ConvertingArrayCodec.DATE_ARRAY_TYPES));
                 } else {
-                    additionalCodecs.add(new ArrayCodec(byteBufAllocator, delegate, componentType));
+                    defaultArrayCodecs.add(new ArrayCodec(byteBufAllocator, delegate, componentType));
                 }
-            }
-
-            if (codec instanceof PrimitiveWrapperCodecProvider<?>) {
-                additionalCodecs.add(((PrimitiveWrapperCodecProvider<?>) codec).getPrimitiveCodec());
             }
         }
 
-        codecs.addAll(additionalCodecs);
+        codecs.addAll(defaultArrayCodecs);
 
         return codecs;
     }
@@ -212,8 +188,9 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
     }
 
     @Override
+    @Nullable
     @SuppressWarnings("unchecked")
-    public <T> @Nullable T decode(@Nullable ByteBuf buffer, int dataType, Format format, Class<? extends T> type) {
+    public <T> T decode(@Nullable ByteBuf buffer, int dataType, Format format, Class<? extends T> type) {
         Assert.requireNonNull(format, "format must not be null");
         Assert.requireNonNull(type, "type must not be null");
 
@@ -277,7 +254,7 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
         if (dataType == null) {
 
             if (parameterValue == null) {
-                return ObjectCodec.INSTANCE.encodeNull();
+                throw new IllegalArgumentException(String.format("Cannot encode null value %s using type inference", value));
             }
 
             Codec<?> codec = this.codecLookup.findEncodeCodec(parameterValue);
@@ -302,10 +279,6 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
     @Override
     public EncodedParameter encodeNull(Class<?> type) {
         Assert.requireNonNull(type, "type must not be null");
-
-        if (type == Object.class) {
-            return ObjectCodec.INSTANCE.encodeNull();
-        }
 
         Codec<?> codec = this.codecLookup.findEncodeNullCodec(type);
         if (codec != null) {

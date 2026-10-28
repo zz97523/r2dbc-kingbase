@@ -37,6 +37,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,7 +45,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
@@ -133,6 +133,7 @@ final class PostgresqlStatement implements io.r2dbc.postgresql.api.PostgresqlSta
         return this;
     }
 
+    @Nonnull
     private Binding getCurrentOrFirstBinding() {
         Binding binding = this.bindings.peekLast();
         if (binding == null) {
@@ -217,9 +218,6 @@ final class PostgresqlStatement implements io.r2dbc.postgresql.api.PostgresqlSta
     private Flux<io.r2dbc.postgresql.api.PostgresqlResult> execute(String sql) {
         ExceptionFactory factory = ExceptionFactory.withSql(sql);
 
-        CompletableFuture<Void> onCancel = new CompletableFuture<>();
-        AtomicBoolean canceled = new AtomicBoolean();
-
         if (this.parsedSql.getParameterCount() != 0) {
             // Extended query protocol
             if (this.bindings.size() == 0) {
@@ -234,22 +232,17 @@ final class PostgresqlStatement implements io.r2dbc.postgresql.api.PostgresqlSta
                 if (this.bindings.size() == 1) {
 
                     Binding binding = this.bindings.peekFirst();
-                    Flux<BackendMessage> messages = collectBindingParameters(binding).flatMapMany(values -> ExtendedFlowDelegate.runQuery(this.resources, factory, sql, binding, values, fetchSize,
-                        new AtomicBoolean()));
+                    Flux<BackendMessage> messages = collectBindingParameters(binding).flatMapMany(values -> ExtendedFlowDelegate.runQuery(this.resources, factory, sql, binding, values, fetchSize));
                     return Flux.just(PostgresqlResult.toResult(this.resources, messages, factory));
                 }
 
                 Iterator<Binding> iterator = this.bindings.iterator();
                 Sinks.Many<Binding> bindings = Sinks.many().unicast().onBackpressureBuffer();
-
-                onCancel.whenComplete((unused, throwable) -> {
-                    clearBindings(iterator, canceled);
-                });
-
+                AtomicBoolean canceled = new AtomicBoolean();
                 return bindings.asFlux()
                     .map(it -> {
                         Flux<BackendMessage> messages =
-                            collectBindingParameters(it).flatMapMany(values -> ExtendedFlowDelegate.runQuery(this.resources, factory, sql, it, values, this.fetchSize, canceled)).doOnComplete(() -> tryNextBinding(iterator, bindings, canceled));
+                            collectBindingParameters(it).flatMapMany(values -> ExtendedFlowDelegate.runQuery(this.resources, factory, sql, it, values, this.fetchSize)).doOnComplete(() -> tryNextBinding(iterator, bindings, canceled));
 
                         return PostgresqlResult.toResult(this.resources, messages, factory);
                     })
@@ -263,7 +256,7 @@ final class PostgresqlStatement implements io.r2dbc.postgresql.api.PostgresqlSta
         Flux<BackendMessage> exchange;
         // Simple Query protocol
         if (this.fetchSize != NO_LIMIT) {
-            exchange = ExtendedFlowDelegate.runQuery(this.resources, factory, sql, Binding.EMPTY, Collections.emptyList(), this.fetchSize, canceled);
+            exchange = ExtendedFlowDelegate.runQuery(this.resources, factory, sql, Binding.EMPTY, Collections.emptyList(), this.fetchSize);
         } else {
             exchange = SimpleQueryMessageFlow.exchange(this.resources.getClient(), sql);
         }
@@ -271,10 +264,7 @@ final class PostgresqlStatement implements io.r2dbc.postgresql.api.PostgresqlSta
         return exchange.windowUntil(WINDOW_UNTIL)
             .doOnDiscard(ReferenceCounted.class, ReferenceCountUtil::release) // ensure release of rows within WindowPredicate
             .map(messages -> PostgresqlResult.toResult(this.resources, messages, factory))
-            .as(source -> Operators.discardOnCancel(source, () -> {
-                canceled.set(true);
-                onCancel.complete(null);
-            }));
+            .as(Operators::discardOnCancel);
     }
 
     private static void tryNextBinding(Iterator<Binding> iterator, Sinks.Many<Binding> bindingSink, AtomicBoolean canceled) {

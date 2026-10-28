@@ -67,13 +67,6 @@ public final class CopyData extends AbstractReferenceCounted implements Frontend
     }
 
     @Override
-    public void dispose() {
-        if (refCnt() > 0) {
-            release();
-        }
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;

@@ -19,10 +19,11 @@ package io.r2dbc.postgresql.message.frontend;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
@@ -38,7 +39,7 @@ import static io.r2dbc.postgresql.message.frontend.FrontendMessageUtils.writeSiz
  */
 public final class SASLInitialResponse implements FrontendMessage {
 
-    private final @Nullable ByteBuffer initialResponse;
+    private final ByteBuffer initialResponse;
 
     private final String name;
 
@@ -50,7 +51,12 @@ public final class SASLInitialResponse implements FrontendMessage {
      * @throws IllegalArgumentException if {@code name} is {@code null}
      */
     public SASLInitialResponse(@Nullable ByteBuffer initialResponse, String name) {
-        this.initialResponse = initialResponse;
+        if (initialResponse == null) {
+            this.initialResponse = null;
+        } else {
+            ((Buffer) initialResponse).flip();
+            this.initialResponse = initialResponse;
+        }
         this.name = Assert.requireNonNull(name, "name must not be null");
     }
 

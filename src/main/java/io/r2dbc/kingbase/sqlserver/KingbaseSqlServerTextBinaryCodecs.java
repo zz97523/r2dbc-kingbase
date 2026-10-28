@@ -19,9 +19,6 @@ package io.r2dbc.kingbase.sqlserver;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
-import io.r2dbc.kingbase.KingbaseMoney;
-import io.r2dbc.kingbase.KingbaseMoneyCodecSupport;
-import io.r2dbc.kingbase.KingbaseXml;
 import io.r2dbc.postgresql.client.EncodedParameter;
 import io.r2dbc.postgresql.codec.Codec;
 import io.r2dbc.postgresql.codec.CodecMetadata;
@@ -30,10 +27,13 @@ import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
+import io.r2dbc.kingbase.KingbaseMoneyCodecSupport;
+import io.r2dbc.kingbase.KingbaseMoney;
+import io.r2dbc.kingbase.KingbaseXml;
 import reactor.core.publisher.Mono;
 
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.BitSet;
 
@@ -66,7 +66,53 @@ final class KingbaseSqlServerTextBinaryCodecs {
     private KingbaseSqlServerTextBinaryCodecs() {
     }
 
-    /** SQL Server {@code money} default Java mapping, matching the JDBC driver's Double mapping. */
+    /** Explicit MONEY value used when the database type must be selected during parameter inference. */
+    static final class MoneyValueCodec extends AbstractSqlServerCodec<KingbaseMoney> {
+
+        MoneyValueCodec(ByteBufAllocator allocator, KingbaseSqlServerTypeOids typeOids) {
+            super(allocator, KingbaseMoney.class, KingbaseSqlServerType.MONEY, typeOids);
+        }
+
+        @Override
+        public boolean canDecode(int dataType, Format format, Class<?> type) {
+            return format == FORMAT_TEXT && this.typeOids.isMoney(dataType)
+                && type == KingbaseMoney.class;
+        }
+
+        @Override
+        KingbaseMoney doDecode(ByteBuf buffer, int dataType, Format format,
+                               Class<? extends KingbaseMoney> type) {
+            return new KingbaseMoney(KingbaseMoneyCodecSupport.parse(ByteBufUtils.decode(buffer)));
+        }
+
+        @Override
+        public boolean canEncode(Object value) {
+            return value instanceof KingbaseMoney;
+        }
+
+        @Override
+        public boolean canEncodeNull(Class<?> type) {
+            return type == KingbaseMoney.class;
+        }
+
+        @Override
+        public EncodedParameter encode(Object value) {
+            return encode(value, this.typeOids.encodeMoney());
+        }
+
+        @Override
+        public EncodedParameter encode(Object value, int dataType) {
+            int oid = resolveBindOid(dataType, this.typeOids.encodeMoney());
+            return encodeText(this.allocator, oid, value.toString());
+        }
+
+        @Override
+        public EncodedParameter encodeNull() {
+            return nullParameter(this.typeOids.encodeMoney());
+        }
+    }
+
+    /** Optional explicit {@link Double} view of SQL Server {@code money}. */
     static final class MoneyCodec extends AbstractSqlServerCodec<Double> {
 
         MoneyCodec(ByteBufAllocator allocator, KingbaseSqlServerTypeOids typeOids) {
@@ -76,7 +122,7 @@ final class KingbaseSqlServerTextBinaryCodecs {
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
             return format == FORMAT_TEXT && this.typeOids.isMoney(dataType)
-                && (type == Object.class || type == Double.class || type == Double.TYPE);
+                && (type == Double.class || type == Double.TYPE);
         }
 
         @Override
@@ -102,7 +148,8 @@ final class KingbaseSqlServerTextBinaryCodecs {
         @Override
         public EncodedParameter encode(Object value, int dataType) {
             int oid = resolveBindOid(dataType, this.typeOids.encodeMoney());
-            return encodeText(this.allocator, oid, KingbaseMoneyCodecSupport.format((Number) value));
+            return encodeText(this.allocator, oid,
+                KingbaseMoneyCodecSupport.format((Number) value));
         }
 
         @Override
@@ -111,7 +158,6 @@ final class KingbaseSqlServerTextBinaryCodecs {
         }
     }
 
-    /** Exact SQL Server {@code money} representation requested as {@link BigDecimal}. */
     static final class MoneyBigDecimalCodec extends AbstractSqlServerCodec<BigDecimal> {
 
         MoneyBigDecimalCodec(ByteBufAllocator allocator, KingbaseSqlServerTypeOids typeOids) {
@@ -120,12 +166,14 @@ final class KingbaseSqlServerTextBinaryCodecs {
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
+            // KES JDBC SQLServerTypeInfoCache exposes MONEY as JDBC DECIMAL / BigDecimal.
             return format == FORMAT_TEXT && this.typeOids.isMoney(dataType)
                 && (type == Object.class || type == BigDecimal.class);
         }
 
         @Override
-        BigDecimal doDecode(ByteBuf buffer, int dataType, Format format, Class<? extends BigDecimal> type) {
+        BigDecimal doDecode(ByteBuf buffer, int dataType, Format format,
+                            Class<? extends BigDecimal> type) {
             return KingbaseMoneyCodecSupport.parse(ByteBufUtils.decode(buffer));
         }
 
@@ -147,7 +195,8 @@ final class KingbaseSqlServerTextBinaryCodecs {
         @Override
         public EncodedParameter encode(Object value, int dataType) {
             int oid = resolveBindOid(dataType, this.typeOids.encodeMoney());
-            return encodeText(this.allocator, oid, KingbaseMoneyCodecSupport.format((Number) value));
+            return encodeText(this.allocator, oid,
+                KingbaseMoneyCodecSupport.format((Number) value));
         }
 
         @Override
@@ -156,7 +205,10 @@ final class KingbaseSqlServerTextBinaryCodecs {
         }
     }
 
-    /** SQL Server {@code XML} is exposed as text and explicitly bound through {@link KingbaseXml}. */
+    /**
+     * SQL Server {@code XML} is exposed as text because R2DBC SPI 0.9 has no SQLXML type.
+     * XML encoding remains handled by the regular String codec when an XML OID is explicit.
+     */
     static final class XmlCodec extends AbstractSqlServerCodec<String> {
 
         XmlCodec(ByteBufAllocator allocator, KingbaseSqlServerTypeOids typeOids) {
@@ -165,7 +217,8 @@ final class KingbaseSqlServerTextBinaryCodecs {
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
-            return (type == String.class || type == Object.class) && this.typeOids.isXml(dataType);
+            return (type == String.class || type == Object.class)
+                && this.typeOids.isXml(dataType);
         }
 
         @Override
@@ -191,8 +244,53 @@ final class KingbaseSqlServerTextBinaryCodecs {
         @Override
         public EncodedParameter encode(Object value, int dataType) {
             int oid = resolveBindOid(dataType, this.typeOids.encodeXml());
-            String text = value instanceof KingbaseXml ? ((KingbaseXml) value).getValue() : (String) value;
-            return encodeText(this.allocator, oid, text);
+            return encodeText(this.allocator, oid, value instanceof KingbaseXml
+                ? ((KingbaseXml) value).getValue() : (String) value);
+        }
+
+        @Override
+        public EncodedParameter encodeNull() {
+            return nullParameter(this.typeOids.encodeXml());
+        }
+    }
+
+    /** Explicit XML value used for scalar and array parameter inference. */
+    static final class XmlValueCodec extends AbstractSqlServerCodec<KingbaseXml> {
+
+        XmlValueCodec(ByteBufAllocator allocator, KingbaseSqlServerTypeOids typeOids) {
+            super(allocator, KingbaseXml.class, KingbaseSqlServerType.XML, typeOids);
+        }
+
+        @Override
+        public boolean canDecode(int dataType, Format format, Class<?> type) {
+            return this.typeOids.isXml(dataType) && type == KingbaseXml.class;
+        }
+
+        @Override
+        KingbaseXml doDecode(ByteBuf buffer, int dataType, Format format,
+                             Class<? extends KingbaseXml> type) {
+            return new KingbaseXml(ByteBufUtils.decode(buffer));
+        }
+
+        @Override
+        public boolean canEncode(Object value) {
+            return value instanceof KingbaseXml;
+        }
+
+        @Override
+        public boolean canEncodeNull(Class<?> type) {
+            return type == KingbaseXml.class;
+        }
+
+        @Override
+        public EncodedParameter encode(Object value) {
+            return encode(value, this.typeOids.encodeXml());
+        }
+
+        @Override
+        public EncodedParameter encode(Object value, int dataType) {
+            int oid = resolveBindOid(dataType, this.typeOids.encodeXml());
+            return encodeText(this.allocator, oid, ((KingbaseXml) value).getValue());
         }
 
         @Override
@@ -209,7 +307,7 @@ final class KingbaseSqlServerTextBinaryCodecs {
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
-            if (type != String.class) {
+            if (type != String.class && !(type == Object.class && this.typeOids.isCharacter(dataType))) {
                 return false;
             }
             return this.typeOids.canDecodeTextExtension(dataType, format,
@@ -255,8 +353,8 @@ final class KingbaseSqlServerTextBinaryCodecs {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-            return Arrays.asList(VARCHAR, TEXT, BPCHAR);
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Arrays.<PostgresTypeIdentifier>asList(VARCHAR, TEXT, BPCHAR);
         }
 
         @Override
@@ -382,7 +480,7 @@ final class KingbaseSqlServerTextBinaryCodecs {
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
-            return type == byte[].class
+            return (type == byte[].class || (type == Object.class && this.typeOids.isRowVersion(dataType)))
                 && this.typeOids.canDecodeTextExtension(dataType, format,
                 this.typeOids.isBinary(dataType) || this.typeOids.isText(dataType));
         }

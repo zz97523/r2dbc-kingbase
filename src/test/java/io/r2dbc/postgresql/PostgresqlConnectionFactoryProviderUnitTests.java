@@ -16,47 +16,28 @@
 
 package io.r2dbc.postgresql;
 
-import io.r2dbc.postgresql.client.ChannelBindingMode;
-import io.r2dbc.postgresql.client.MultiHostConfiguration;
-import io.r2dbc.postgresql.client.MultiHostConfiguration.ServerHost;
 import io.r2dbc.postgresql.client.SSLConfig;
 import io.r2dbc.postgresql.client.SSLMode;
-import io.r2dbc.postgresql.client.SSLNegotiation;
 import io.r2dbc.postgresql.extension.Extension;
-import io.r2dbc.kingbase.KingbaseMode;
 import io.r2dbc.postgresql.util.LogLevel;
 import io.r2dbc.spi.ConnectionFactoryOptions;
 import io.r2dbc.spi.Option;
 import org.junit.jupiter.api.Test;
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 
-import javax.net.ssl.SSLParameters;
-import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TimeZone;
-import java.util.function.Supplier;
 
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.AUTODETECT_EXTENSIONS;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.CHANNEL_BINDING;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.CHANNEL_BINDING_ALIAS;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.COMPATIBILITY_MODE;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.ERROR_RESPONSE_LOG_LEVEL;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.EXTENSIONS;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.FAILOVER_PROTOCOL;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.KINGBASE_MODE;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.FETCH_SIZE;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.FORCE_BINARY;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.HOST_RECHECK_TIME;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.LEGACY_POSTGRESQL_DRIVER;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.LOAD_BALANCE_HOSTS;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.LOCK_WAIT_TIMEOUT;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.MAX_MESSAGE_SIZE;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.OPTIONS;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.POSTGRESQL_DRIVER;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.PREFER_ATTACHED_BUFFERS;
@@ -66,18 +47,13 @@ import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.SSL_CERT;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.SSL_CONTEXT_BUILDER_CUSTOMIZER;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.SSL_KEY;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.SSL_MODE;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.SSL_NEGOTIATION;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.SSL_ROOT_CERT;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.SSL_SNI;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.STATEMENT_TIMEOUT;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.TARGET_SERVER_TYPE;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.TCP_KEEPALIVE;
 import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.TCP_NODELAY;
-import static io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider.TIME_ZONE;
 import static io.r2dbc.spi.ConnectionFactoryOptions.DRIVER;
 import static io.r2dbc.spi.ConnectionFactoryOptions.HOST;
 import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
-import static io.r2dbc.spi.ConnectionFactoryOptions.PROTOCOL;
 import static io.r2dbc.spi.ConnectionFactoryOptions.SSL;
 import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
 import static io.r2dbc.spi.ConnectionFactoryOptions.builder;
@@ -200,77 +176,6 @@ final class PostgresqlConnectionFactoryProviderUnitTests {
         SSLConfig sslConfig = factory.getConfiguration().getSslConfig();
 
         assertThat(sslConfig.getSslMode()).isEqualTo(SSLMode.VERIFY_FULL);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test
-    void enableSslDirect() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .option(SSL, true)
-            .option((Option) SSL_NEGOTIATION, "Direct")
-            .build());
-
-        SSLConfig sslConfig = factory.getConfiguration().getSslConfig();
-
-        assertThat(sslConfig.getSslNegotiation()).isEqualTo(SSLNegotiation.DIRECT);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test
-    void supportsChannelBinding() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .option((Option) CHANNEL_BINDING, "require")
-            .build());
-
-        assertThat(factory.getConfiguration().getChannelBindingMode()).isEqualTo(ChannelBindingMode.REQUIRE);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test
-    void supportsChannelBindingAlias() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .option((Option) CHANNEL_BINDING_ALIAS, "disable")
-            .build());
-
-        assertThat(factory.getConfiguration().getChannelBindingMode()).isEqualTo(ChannelBindingMode.DISABLE);
-    }
-
-    @Test
-    void channelBindingDefaultsToPrefer() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .build());
-
-        assertThat(factory.getConfiguration().getChannelBindingMode()).isEqualTo(ChannelBindingMode.PREFER);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    @Test
-    void supportsMaxMessageSize() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .option((Option) MAX_MESSAGE_SIZE, "1024")
-            .build());
-
-        assertThat(factory.getConfiguration().getMaxMessageSize()).isEqualTo(1024);
     }
 
     @Test
@@ -410,32 +315,6 @@ final class PostgresqlConnectionFactoryProviderUnitTests {
     }
 
     @Test
-    void providerShouldConsiderKingbaseMode() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .option(KINGBASE_MODE, KingbaseMode.MYSQL)
-            .build());
-
-        assertThat(factory.getConfiguration().getKingbaseMode()).isEqualTo(KingbaseMode.MYSQL);
-    }
-
-    @Test
-    void providerShouldConsiderKingbaseModeWhenProvidedAsString() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .option(Option.valueOf("kingbaseMode"), "mysql")
-            .build());
-
-        assertThat(factory.getConfiguration().getKingbaseMode()).isEqualTo(KingbaseMode.MYSQL);
-    }
-
-    @Test
     void providerShouldConsiderPreparedStatementCacheQueries() {
         PostgresqlConnectionFactory factory = this.provider.create(builder()
             .option(DRIVER, LEGACY_POSTGRESQL_DRIVER)
@@ -554,27 +433,6 @@ final class PostgresqlConnectionFactoryProviderUnitTests {
             .build());
 
         assertThatIllegalStateException().isThrownBy(() -> factory.getConfiguration().getSslConfig().getSslProvider().get()).withMessageContaining("Works!");
-
-        SSLParameters sslParameters = factory.getConfiguration().getSslConfig().getSslParametersFactory().apply(InetSocketAddress.createUnresolved("myhost", 1));
-
-        assertThat(sslParameters.getServerNames()).hasSize(1);
-    }
-
-    @Test
-    void shouldApplySslSni() {
-
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .option(SSL_MODE, SSLMode.ALLOW)
-            .option(SSL_SNI, false)
-            .build());
-
-        SSLParameters sslParameters = factory.getConfiguration().getSslConfig().getSslParametersFactory().apply(InetSocketAddress.createUnresolved("myhost", 1));
-
-        assertThat(sslParameters.getServerNames()).isNull();
     }
 
     @Test
@@ -606,34 +464,6 @@ final class PostgresqlConnectionFactoryProviderUnitTests {
     }
 
     @Test
-    void shouldConfigureTimeZone() {
-
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .option(TIME_ZONE, TimeZone.getTimeZone("Europe/Amsterdam"))
-            .build());
-
-        assertThat(factory.getConfiguration().getTimeZone()).isEqualTo(TimeZone.getTimeZone("Europe/Amsterdam"));
-    }
-
-    @Test
-    void shouldConfigureTimeZoneAsString() {
-
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(PASSWORD, "test-password")
-            .option(USER, "test-user")
-            .option(Option.valueOf("timeZone"), "Europe/Amsterdam")
-            .build());
-
-        assertThat(factory.getConfiguration().getTimeZone()).isEqualTo(TimeZone.getTimeZone("Europe/Amsterdam"));
-    }
-
-    @Test
     void shouldConnectUsingUnixDomainSocket() {
 
         PostgresqlConnectionFactory factory = this.provider.create(builder()
@@ -642,47 +472,8 @@ final class PostgresqlConnectionFactoryProviderUnitTests {
             .option(USER, "postgres")
             .build());
 
-        assertThat(factory.getConfiguration().getSingleHostConfiguration().isUseSocket()).isTrue();
-        assertThat(factory.getConfiguration().getSingleHostConfiguration().getRequiredSocket()).isEqualTo("/tmp/.s.PGSQL.5432");
-    }
-
-    @Test
-    void shouldConnectUsingMultiHostConfiguration() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, POSTGRESQL_DRIVER)
-            .option(PROTOCOL, FAILOVER_PROTOCOL)
-            .option(HOST, "host1:5433,host2:5432,host3")
-            .option(USER, "postgres")
-            .option(LOAD_BALANCE_HOSTS, true)
-            .option(HOST_RECHECK_TIME, Duration.ofMillis(20000))
-            .option(TARGET_SERVER_TYPE, MultiHostConnectionStrategy.TargetServerType.SECONDARY)
-            .build());
-
-        assertThat(factory.getConfiguration().getSingleHostConfiguration()).isNull();
-        assertThat(factory.getConfiguration().getMultiHostConfiguration().isLoadBalanceHosts()).isEqualTo(true);
-        assertThat(factory.getConfiguration().getMultiHostConfiguration().getHostRecheckTime()).isEqualTo(Duration.ofMillis(20000));
-        assertThat(factory.getConfiguration().getMultiHostConfiguration().getTargetServerType()).isEqualTo(MultiHostConnectionStrategy.TargetServerType.SECONDARY);
-        List<ServerHost> hosts = factory.getConfiguration().getMultiHostConfiguration().getHosts();
-        assertThat(hosts).hasSize(3);
-        assertThat(hosts.get(0)).usingRecursiveComparison().isEqualTo(new ServerHost("host1", 5433));
-        assertThat(hosts.get(1)).usingRecursiveComparison().isEqualTo(new ServerHost("host2", 5432));
-        assertThat(hosts.get(2)).usingRecursiveComparison().isEqualTo(new ServerHost("host3", 5432));
-    }
-
-    @Test
-    void shouldConnectUsingMultiHostConfigurationFromUrl() {
-        PostgresqlConnectionFactory factory = this.provider.create(ConnectionFactoryOptions.parse("r2dbc:postgresql:failover://user:foo@host1:5433,host2:5432,host3" +
-            "?loadBalanceHosts=true&hostRecheckTime=20s&targetServerType=SECONdArY"));
-
-        assertThat(factory.getConfiguration().getSingleHostConfiguration()).isNull();
-        MultiHostConfiguration config = factory.getConfiguration().getRequiredMultiHostConfiguration();
-
-        assertThat(config.isLoadBalanceHosts()).isEqualTo(true);
-        assertThat(config.getHostRecheckTime()).isEqualTo(Duration.ofMillis(20000));
-        assertThat(config.getTargetServerType()).isEqualTo(MultiHostConnectionStrategy.TargetServerType.SECONDARY);
-
-        List<ServerHost> hosts = config.getHosts();
-        assertThat(hosts).hasSize(3).containsExactly(new ServerHost("host1", 5433), new ServerHost("host2", 5432), new ServerHost("host3", 5432));
+        assertThat(factory.getConfiguration().isUseSocket()).isTrue();
+        assertThat(factory.getConfiguration().getRequiredSocket()).isEqualTo("/tmp/.s.PGSQL.5432");
     }
 
     @Test
@@ -747,34 +538,6 @@ final class PostgresqlConnectionFactoryProviderUnitTests {
             .build());
 
         assertThat(factory.getConfiguration().getExtensions()).containsExactly(testExtension1, testExtension2);
-    }
-
-    @Test
-    void supportsUsernameAndPasswordSupplier() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, LEGACY_POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(Option.valueOf("password"), (Supplier<String>) () -> "test-password")
-            .option(Option.valueOf("user"), (Supplier<String>) () -> "test-user")
-            .option(USER, "test-user")
-            .build());
-
-        StepVerifier.create(factory.getConfiguration().getPassword()).expectNext("test-password").verifyComplete();
-        StepVerifier.create(factory.getConfiguration().getUsername()).expectNext("test-user").verifyComplete();
-    }
-
-    @Test
-    void supportsUsernameAndPasswordPublisher() {
-        PostgresqlConnectionFactory factory = this.provider.create(builder()
-            .option(DRIVER, LEGACY_POSTGRESQL_DRIVER)
-            .option(HOST, "test-host")
-            .option(Option.valueOf("password"), Mono.just("test-password"))
-            .option(Option.valueOf("user"), Mono.just("test-user"))
-            .option(USER, "test-user")
-            .build());
-
-        StepVerifier.create(factory.getConfiguration().getPassword()).expectNext("test-password").verifyComplete();
-        StepVerifier.create(factory.getConfiguration().getUsername()).expectNext("test-user").verifyComplete();
     }
 
     private static class TestExtension implements Extension {

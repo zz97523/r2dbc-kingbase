@@ -18,7 +18,7 @@
  * The messages that are both sent from a frontend client to a backend server and from a backend server to a frontend client.
  */
 
-@org.jspecify.annotations.NullMarked
+@NonNullApi
 package io.r2dbc.postgresql.message;
 
-
+import reactor.util.annotation.NonNullApi;

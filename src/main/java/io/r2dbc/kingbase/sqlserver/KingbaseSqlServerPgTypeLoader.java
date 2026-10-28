@@ -47,7 +47,7 @@ final class KingbaseSqlServerPgTypeLoader {
             .collectList()
             .flatMap(rows -> {
                 rows.sort(Comparator
-                    .comparing((PgTypeRow row) -> PG_CATALOG.equals(row.namespace()))
+                    .comparing(PgTypeRow::schemaRank, Comparator.nullsFirst(Comparator.reverseOrder()))
                     .thenComparing(PgTypeRow::typname)
                     .thenComparing(PgTypeRow::oid, Comparator.reverseOrder()));
                 rows.forEach(row -> oids.accept(row.typname(), row.oid(), row.namespace(), row.arrayOid()));
@@ -63,18 +63,21 @@ final class KingbaseSqlServerPgTypeLoader {
         if (joiner.length() == 0) {
             return Flux.empty();
         }
-        String sql = "SELECT t.oid, t.typarray, t.typname, n.nspname "
+        String sql = "SELECT t.oid, t.typarray, t.typname, n.nspname, "
+            + "array_position(current_schemas(false), n.nspname) AS schema_rank "
             + "FROM pg_catalog.pg_type t "
             + "INNER JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace "
             + "WHERE lower(t.typname) IN (" + joiner + ") "
-            + "AND t.typtype IN ('b', 'd')";
+            + "AND t.typtype IN ('b', 'd') "
+            + "AND (n.nspname = ANY(current_schemas(false)) OR n.nspname = '" + PG_CATALOG + "')";
         return connection.createStatement(sql)
             .execute()
             .flatMap(result -> result.map((row, meta) -> new PgTypeRow(
                 row.get("typname", String.class),
                 Math.toIntExact(row.get("oid", Long.class)),
                 row.get("nspname", String.class),
-                Math.toIntExact(row.get("typarray", Long.class))
+                Math.toIntExact(row.get("typarray", Long.class)),
+                row.get("schema_rank", Integer.class)
             )));
     }
 
@@ -123,7 +126,8 @@ final class KingbaseSqlServerPgTypeLoader {
             + "INNER JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace "
             + "WHERE lower(t.typname) = lower('" + typname.toLowerCase(Locale.ROOT) + "') "
             + "AND t.typtype IN ('b', 'd') "
-            + "ORDER BY CASE WHEN n.nspname = '" + PG_CATALOG + "' THEN 1 ELSE 0 END, t.oid DESC "
+            + "AND (n.nspname = ANY(current_schemas(false)) OR n.nspname = '" + PG_CATALOG + "') "
+            + "ORDER BY array_position(current_schemas(false), n.nspname) NULLS LAST, t.oid DESC "
             + "LIMIT 1";
         return connection.createStatement(sql)
             .execute()
@@ -131,12 +135,51 @@ final class KingbaseSqlServerPgTypeLoader {
                 row.get("typname", String.class),
                 Math.toIntExact(row.get("oid", Long.class)),
                 row.get("nspname", String.class),
-                Math.toIntExact(row.get("typarray", Long.class))
+                Math.toIntExact(row.get("typarray", Long.class)),
+                null
             )))
             .next();
     }
 
-    private record PgTypeRow(String typname, int oid, String namespace, int arrayOid) {
+    private static final class PgTypeRow {
+
+        private final String typname;
+
+        private final int oid;
+
+        private final String namespace;
+
+        private final int arrayOid;
+
+        private final Integer schemaRank;
+
+        private PgTypeRow(String typname, int oid, String namespace, int arrayOid, Integer schemaRank) {
+            this.typname = typname;
+            this.oid = oid;
+            this.namespace = namespace;
+            this.arrayOid = arrayOid;
+            this.schemaRank = schemaRank;
+        }
+
+        String typname() {
+            return this.typname;
+        }
+
+        int oid() {
+            return this.oid;
+        }
+
+        String namespace() {
+            return this.namespace;
+        }
+
+        int arrayOid() {
+            return this.arrayOid;
+        }
+
+        Integer schemaRank() {
+            return this.schemaRank;
+        }
     }
 
 }

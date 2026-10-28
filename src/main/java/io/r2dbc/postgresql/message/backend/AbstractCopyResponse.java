@@ -83,7 +83,7 @@ abstract class AbstractCopyResponse implements BackendMessage {
     static Set<Format> readColumnFormats(ByteBuf in) {
         Assert.requireNonNull(in, "in must not be null");
 
-        int count = in.readUnsignedShort();
+        int count = in.readShort();
         Set<Format> formatSet = EnumSet.noneOf(Format.class);
 
         for (int i = 0; i < count; i++) {

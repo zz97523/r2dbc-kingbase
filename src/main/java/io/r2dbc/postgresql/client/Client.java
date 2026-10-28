@@ -28,10 +28,8 @@ import org.reactivestreams.Subscriber;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 
 import java.util.Optional;
-import java.util.TimeZone;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -59,7 +57,7 @@ public interface Client {
      * @throws IllegalArgumentException if {@code consumer} is {@code null}
      * @since 0.8.1
      */
-    void addNotificationListener(Subscriber<NotificationResponse> consumer);
+    Disposable addNotificationListener(Subscriber<NotificationResponse> consumer);
 
     /**
      * Release any resources held by the {@link Client}.
@@ -123,25 +121,11 @@ public interface Client {
     Optional<Integer> getProcessId();
 
     /**
-     * @return returns the EventLoop as scheduler.
-     * @since 1.0.7
-     */
-    Scheduler getScheduler();
-
-    /**
-     * Returns the connected process secret key if it has been communicated. The key is 4 bytes when using protocol version 3.0/3.1 and variable-length (up to 256 bytes) since protocol version 3.2.
+     * Returns the connected process secret key if it has been communicated.
      *
      * @return the connected process secret key if it has been communicated
      */
-    Optional<byte[]> getSecretKey();
-
-    /**
-     * Returns the current time zone.
-     *
-     * @return the current time zone
-     * @since 1.0
-     */
-    Optional<TimeZone> getTimeZone();
+    Optional<Integer> getSecretKey();
 
     /**
      * Returns the current transaction status.

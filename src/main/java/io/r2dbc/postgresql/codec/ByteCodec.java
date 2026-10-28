@@ -21,9 +21,9 @@ import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.client.EncodedParameter;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
-final class ByteCodec extends AbstractCodec<Byte> implements ArrayCodecDelegate<Byte>, PrimitiveWrapperCodecProvider<Byte> {
+final class ByteCodec extends AbstractCodec<Byte> implements ArrayCodecDelegate<Byte> {
 
     private final ShortCodec delegate;
 
@@ -35,22 +35,12 @@ final class ByteCodec extends AbstractCodec<Byte> implements ArrayCodecDelegate<
     }
 
     @Override
-    public PrimitiveCodec<Byte> getPrimitiveCodec() {
-        return new PrimitiveCodec<>(Byte.TYPE, Byte.class, this);
-    }
-
-    @Override
     public EncodedParameter encodeNull() {
         return this.delegate.encodeNull();
     }
 
     @Override
-    public boolean canDecode(int dataType, Format format, Class<?> type) {
-        return super.canDecode(dataType, format, type) && this.delegate.canDecode(dataType, format, Short.class);
-    }
-
-    @Override
-    boolean doCanDecode(PostgresqlObjectId type, Format format) {
+    boolean doCanDecode(PostgresqlObjectId type, @Nullable Format format) {
         Assert.requireNonNull(type, "type must not be null");
 
         return this.delegate.doCanDecode(type, format);
@@ -94,7 +84,7 @@ final class ByteCodec extends AbstractCodec<Byte> implements ArrayCodecDelegate<
     }
 
     @Override
-    public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+    public Iterable<PostgresTypeIdentifier> getDataTypes() {
         return this.delegate.getDataTypes();
     }
 

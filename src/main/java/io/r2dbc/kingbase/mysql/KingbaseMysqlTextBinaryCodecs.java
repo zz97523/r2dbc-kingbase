@@ -27,13 +27,13 @@ import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
-import io.r2dbc.kingbase.KingbaseMoney;
 import io.r2dbc.kingbase.KingbaseMoneyCodecSupport;
+import io.r2dbc.kingbase.KingbaseMoney;
 import reactor.core.publisher.Mono;
 
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.sql.RowId;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.BitSet;
 
@@ -63,7 +63,10 @@ final class KingbaseMysqlTextBinaryCodecs {
     private KingbaseMysqlTextBinaryCodecs() {
     }
 
-    /** MySQL-mode {@code money}, matching the KES JDBC driver's default Double mapping. */
+    /**
+     * MySQL-mode {@code money} mapped like the JDBC driver: default reads use Double,
+     * while callers may request BigDecimal through the numeric codec.
+     */
     static final class MoneyCodec extends AbstractMysqlCodec<Double> {
 
         MoneyCodec(ByteBufAllocator allocator, KingbaseMysqlTypeOids typeOids) {
@@ -99,7 +102,8 @@ final class KingbaseMysqlTextBinaryCodecs {
         @Override
         public EncodedParameter encode(Object value, int dataType) {
             int oid = resolveBindOid(dataType, this.typeOids.encodeMoney());
-            return encodeText(this.allocator, oid, KingbaseMoneyCodecSupport.format((Number) value));
+            return encodeText(this.allocator, oid,
+                KingbaseMoneyCodecSupport.format((Number) value));
         }
 
         @Override
@@ -116,7 +120,8 @@ final class KingbaseMysqlTextBinaryCodecs {
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
-            return format == FORMAT_TEXT && this.typeOids.isMoney(dataType) && type == BigDecimal.class;
+            return format == FORMAT_TEXT && this.typeOids.isMoney(dataType)
+                && type == BigDecimal.class;
         }
 
         @Override
@@ -143,7 +148,8 @@ final class KingbaseMysqlTextBinaryCodecs {
         @Override
         public EncodedParameter encode(Object value, int dataType) {
             int oid = resolveBindOid(dataType, this.typeOids.encodeMoney());
-            return encodeText(this.allocator, oid, KingbaseMoneyCodecSupport.format((Number) value));
+            return encodeText(this.allocator, oid,
+                KingbaseMoneyCodecSupport.format((Number) value));
         }
 
         @Override
@@ -185,7 +191,9 @@ final class KingbaseMysqlTextBinaryCodecs {
         }
     }
 
-    /** MySQL compatibility mode {@code ROWID} mapped to {@link RowId}. */
+    /**
+     * MySQL compatibility mode {@code ROWID} mapped to the JDBC-compatible {@link RowId} type.
+     */
     static final class RowIdCodec extends AbstractMysqlCodec<RowId> {
 
         RowIdCodec(ByteBufAllocator allocator, KingbaseMysqlTypeOids typeOids) {
@@ -241,13 +249,14 @@ final class KingbaseMysqlTextBinaryCodecs {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-            return Arrays.asList(VARCHAR, TEXT, BPCHAR);
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Arrays.<PostgresTypeIdentifier>asList(VARCHAR, TEXT, BPCHAR);
         }
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
-            return type.isEnum() && this.typeOids.canDecodeTextExtension(dataType, format, this.typeOids.isText(dataType));
+            return type.isEnum() && this.typeOids.canDecodeTextExtension(dataType, format,
+                this.typeOids.isEnum(dataType) || this.typeOids.isText(dataType));
         }
 
         @Override
@@ -425,7 +434,8 @@ final class KingbaseMysqlTextBinaryCodecs {
             if (type == Object.class) {
                 return this.typeOids.isBinary(dataType);
             }
-            return type == ByteBuffer.class && this.delegate.canDecode(dataType, format, byte[].class);
+            return type == ByteBuffer.class
+                && this.delegate.canDecode(dataType, format, byte[].class);
         }
 
         @Override

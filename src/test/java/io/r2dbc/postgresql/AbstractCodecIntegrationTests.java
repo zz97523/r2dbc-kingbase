@@ -31,7 +31,6 @@ import io.r2dbc.postgresql.codec.Path;
 import io.r2dbc.postgresql.codec.Point;
 import io.r2dbc.postgresql.codec.Polygon;
 import io.r2dbc.postgresql.codec.PostgresqlObjectId;
-import io.r2dbc.postgresql.codec.Vector;
 import io.r2dbc.spi.Blob;
 import io.r2dbc.spi.Clob;
 import io.r2dbc.spi.Connection;
@@ -39,7 +38,6 @@ import io.r2dbc.spi.Parameters;
 import io.r2dbc.spi.R2dbcType;
 import io.r2dbc.spi.Type;
 import org.assertj.core.data.Offset;
-import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.reactivestreams.Publisher;
 import org.springframework.dao.DataAccessException;
@@ -47,6 +45,7 @@ import org.springframework.util.StreamUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import reactor.util.annotation.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,38 +58,29 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.Month;
-import java.time.MonthDay;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
-import java.time.Year;
-import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 
 import static io.r2dbc.postgresql.util.TestByteBufAllocator.TEST;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 /**
- * Integrations tests for our built-in codecs.
- * Executed typically in text and binary mode through subclasses.
+ * Integrations tests for our built-in codecs. Executed typically in text and binary mode.
  *
  * @see CodecBinaryFormatIntegrationTests
  * @see CodecTextFormatIntegrationTests
@@ -151,7 +141,6 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
     @Test
     void booleanPrimitive() {
         testCodec(Boolean.class, true, "BOOL");
-        testCodec(Boolean.TYPE, true, "BOOL");
     }
 
     @Test
@@ -168,14 +157,12 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
     @Test
     void bytePrimitive() {
         testCodec(Byte.class, (byte) 10, "INT2");
-        testCodec(Byte.TYPE, (byte) 10, "INT2");
     }
 
     @Test
     void charPrimitive() {
         testCodec(Character.class, 'a', "BPCHAR(1)");
         testCodec(Character.class, 'a', "VARCHAR(1)");
-        testCodec(Character.TYPE, 'a', "VARCHAR(1)");
     }
 
     @Test
@@ -270,7 +257,6 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
         testCodec(Double.class, 100.1, "DECIMAL");
         testCodec(Double.class, 100.1, "FLOAT4");
         testCodec(Double.class, 100.1, "FLOAT8");
-        testCodec(Double.TYPE, 100.1, "FLOAT8");
 
         testCodec(Double.class, 100.1, "DECIMAL", R2dbcType.DECIMAL);
         testCodec(Double.class, 100.1, "FLOAT4", R2dbcType.FLOAT);
@@ -305,7 +291,6 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
         testCodec(Float.class, 100.1f, "DECIMAL");
         testCodec(Float.class, 100.1f, "FLOAT4");
         testCodec(Float.class, 100.1f, "FLOAT8");
-        testCodec(Float.TYPE, 100.1f, "FLOAT8");
 
         testCodec(Float.class, 100.1f, "DECIMAL", R2dbcType.DECIMAL);
         testCodec(Float.class, 100.1f, "FLOAT4", R2dbcType.FLOAT);
@@ -357,7 +342,6 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
     void intPrimitive() {
         testCodec(Integer.class, 100, "INT2");
         testCodec(Integer.class, 100, "INT4");
-        testCodec(Integer.TYPE, 100, "INT4");
         testCodec(Integer.class, 100, "INT8");
         testCodec(Integer.class, 100, "OID");
         testCodec(Integer.class, 100, "NUMERIC");
@@ -449,35 +433,11 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
     @Test
     void localDateTime() {
         testCodec(LocalDateTime.class, LocalDateTime.now().truncatedTo(ChronoUnit.MICROS), "TIMESTAMP");
-        testCodec(LocalDateTime.class, LocalDateTime.now().truncatedTo(ChronoUnit.MICROS), "TIMESTAMPTZ");
-
-        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        LocalDateTime ldt = now.atZone(ZoneId.systemDefault()).toLocalDateTime();
-        testCodec(LocalDateTime.class, ldt, Instant.class, (actual, expected) -> {
-
-            assertThat(actual.atZone(ZoneId.systemDefault()).toLocalDateTime()).isEqualTo(expected);
-        }, "TIMESTAMP", "$1", null);
-
-        testCodec(Instant.class, now, LocalDateTime.class, (actual, expected) -> {
-
-            assertThat(actual).isEqualTo(expected.atZone(ZoneId.systemDefault()).toLocalDateTime());
-        }, "TIMESTAMP", "$1", null);
-
-        testCodec(LocalDateTime.class, ldt, Instant.class, (actual, expected) -> {
-
-            assertThat(actual.atZone(ZoneId.systemDefault()).toLocalDateTime()).isEqualTo(expected);
-        }, "TIMESTAMPTZ", "$1", null);
-
-        testCodec(Instant.class, now, LocalDateTime.class, (actual, expected) -> {
-
-            assertThat(actual).isEqualTo(expected.atZone(ZoneId.systemDefault()).toLocalDateTime());
-        }, "TIMESTAMPTZ", "$1", null);
     }
 
     @Test
     void localDateTimeArray() {
         testCodec(LocalDateTime[].class, new LocalDateTime[]{LocalDateTime.now().truncatedTo(ChronoUnit.MICROS)}, "TIMESTAMP[]");
-        testCodec(LocalDateTime[].class, new LocalDateTime[]{LocalDateTime.now().truncatedTo(ChronoUnit.MICROS)}, "TIMESTAMPTZ[]");
     }
 
     @Test
@@ -500,7 +460,6 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
         testCodec(Long.class, 100L, "INT2");
         testCodec(Long.class, 100L, "INT4");
         testCodec(Long.class, 100L, "INT8");
-        testCodec(Long.TYPE, 100L, "INT8");
         testCodec(Long.class, 2314556683L, "OID");
         testCodec(Long.class, 100L, "NUMERIC");
         testCodec(Long.class, 100L, "FLOAT4");
@@ -542,7 +501,6 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
     @Test
     void shortPrimitive() {
         testCodec(Short.class, (short) 100, "INT2");
-        testCodec(Short.TYPE, (short) 100, "INT2");
     }
 
     @Test
@@ -593,31 +551,6 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
     @Test
     void uuid() {
         testCodec(UUID.class, UUID.randomUUID(), "UUID");
-    }
-
-    @Test
-    void year() {
-        testCodec(Year.class, Year.now(), "INT4");
-    }
-
-    @Test
-    void month() {
-        IntStream.rangeClosed(1, 12).forEach(month -> testCodec(Month.class, Month.of(month), "INT4"));
-    }
-
-    @Test
-    void dayOfWeek() {
-        IntStream.rangeClosed(1, 7).forEach(month -> testCodec(DayOfWeek.class, DayOfWeek.of(month), "INT4"));
-    }
-
-    @Test
-    void monthDay() {
-        testCodec(MonthDay.class, MonthDay.now(), "VARCHAR");
-    }
-
-    @Test
-    void yearMonth() {
-        testCodec(YearMonth.class, YearMonth.now(), "VARCHAR");
     }
 
     @Test
@@ -732,16 +665,6 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
             Point.of(.42, 5.3), Point.of(-3.5, 0.)), null}}, "POLYGON[][]");
     }
 
-    @Test
-    void vector() {
-
-        List<Map<String, Object>> extensions = SERVER.getJdbcOperations().queryForList("select * from pg_available_extensions() where name = 'vector'");
-        assumeThat(extensions).isNotEmpty();
-
-        SERVER.getJdbcOperations().execute("CREATE EXTENSION IF NOT EXISTS vector");
-        testCodec(Vector.class, Vector.of(1, 2.2f, 3), "VECTOR");
-    }
-
     private static <T> Mono<T> close(Connection connection) {
         return Mono.from(connection.close()).then(Mono.empty());
     }
@@ -808,7 +731,7 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
 
                     .flatMap(PostgresqlResult::getRowsUpdated)
 
-                    .concatWith(close(connection))).as(StepVerifier::create).expectNext(1L).verifyComplete();
+                    .concatWith(close(connection))).as(StepVerifier::create).expectNext(1).verifyComplete();
 
                 SERVER.getJdbcOperations().execute("DELETE FROM test");
 
@@ -818,7 +741,7 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
 
                     .flatMap(PostgresqlResult::getRowsUpdated)
 
-                    .concatWith(close(connection))).as(StepVerifier::create).expectNext(1L).verifyComplete();
+                    .concatWith(close(connection))).as(StepVerifier::create).expectNext(1).verifyComplete();
             } else {
 
                 this.connectionFactory.create().flatMapMany(connection -> connection
@@ -827,7 +750,7 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
 
                     .flatMap(PostgresqlResult::getRowsUpdated)
 
-                    .concatWith(close(connection))).as(StepVerifier::create).expectNext(1L).verifyComplete();
+                    .concatWith(close(connection))).as(StepVerifier::create).expectNext(1).verifyComplete();
 
                 SERVER.getJdbcOperations().execute("DELETE FROM test");
 
@@ -837,7 +760,7 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
 
                     .flatMap(PostgresqlResult::getRowsUpdated)
 
-                    .concatWith(close(connection))).as(StepVerifier::create).expectNext(1L).verifyComplete();
+                    .concatWith(close(connection))).as(StepVerifier::create).expectNext(1).verifyComplete();
             }
 
             if (value instanceof Buffer) {
@@ -896,7 +819,7 @@ abstract class AbstractCodecIntegrationTests extends AbstractIntegrationTests {
 
                 .flatMap(PostgresqlResult::getRowsUpdated)
 
-                .concatWith(close(connection))).as(StepVerifier::create).expectNext(1L).verifyComplete();
+                .concatWith(close(connection))).as(StepVerifier::create).expectNext(1).verifyComplete();
 
             this.connectionFactory.create().flatMapMany(connection -> {
                 return connection.createStatement("SELECT value FROM test").execute()

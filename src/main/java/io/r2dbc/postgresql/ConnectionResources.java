@@ -16,15 +16,15 @@
 
 package io.r2dbc.postgresql;
 
+import io.r2dbc.kingbase.KingbaseMapping;
+import io.r2dbc.kingbase.KingbaseMode;
+import io.r2dbc.kingbase.KingbaseSqlMapper;
 import io.r2dbc.postgresql.api.PostgresqlConnection;
 import io.r2dbc.postgresql.client.Client;
 import io.r2dbc.postgresql.client.PortalNameSupplier;
 import io.r2dbc.postgresql.codec.Codecs;
-import io.r2dbc.kingbase.KingbaseMapping;
-import io.r2dbc.kingbase.KingbaseMode;
-import io.r2dbc.kingbase.KingbaseSqlMapper;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * Value object capturing contextual connection resources such as {@link Client}, {@link Codecs} and the {@link PostgresqlConnection connection facade}.

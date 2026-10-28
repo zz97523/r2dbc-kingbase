@@ -147,7 +147,7 @@ final class OptionMapper {
         }
 
         if (value instanceof String) {
-            return DurationStyle.detectAndParse(value.toString());
+            return Duration.parse(value.toString());
         }
 
         throw new IllegalArgumentException(String.format("Cannot convert value %s into Duration", value));

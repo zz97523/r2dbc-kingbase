@@ -18,8 +18,6 @@ package io.r2dbc.postgresql;
 
 import io.r2dbc.postgresql.util.PgBouncer;
 import io.r2dbc.postgresql.util.PostgresqlServerExtension;
-import org.junit.jupiter.api.condition.DisabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -29,11 +27,10 @@ import reactor.test.StepVerifier;
 /**
  * Integration tests for {@link PostgresqlConnectionFactory} through PG Bouncer.
  */
-@DisabledOnOs(OS.MAC)
 final class PgBouncerIntegrationTests {
 
     @RegisterExtension
-    static final PostgresqlServerExtension SERVER = new PostgresqlServerExtension("postgres:13.3");
+    static final PostgresqlServerExtension SERVER = new PostgresqlServerExtension();
 
     @ParameterizedTest
     @ValueSource(strings = {"transaction", "statement"})

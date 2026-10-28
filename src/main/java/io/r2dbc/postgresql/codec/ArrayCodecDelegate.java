@@ -18,14 +18,14 @@ package io.r2dbc.postgresql.codec;
 
 import io.netty.buffer.ByteBuf;
 import io.r2dbc.postgresql.message.Format;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * Interface for codecs that should be used as delegate from {@link ArrayCodec}.
  *
  * @since 0.8.8
  */
-interface ArrayCodecDelegate<T> extends CodecMetadata, Decoder<T> {
+public interface ArrayCodecDelegate<T> extends CodecMetadata, Decoder<T> {
 
     /**
      * Encode the {@code value} to be used as parameter to be used as array element.

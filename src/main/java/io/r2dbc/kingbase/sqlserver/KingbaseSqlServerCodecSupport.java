@@ -26,7 +26,7 @@ import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nullable;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -251,8 +251,8 @@ final class KingbaseSqlServerCodecSupport {
         }
 
         @Override
-        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-            return Collections.singleton((PostgresTypeIdentifier)
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Collections.<PostgresTypeIdentifier>singleton(
                 () -> this.typeOids.encodeOid(this.sqlserverType));
         }
 
@@ -310,7 +310,11 @@ final class KingbaseSqlServerCodecSupport {
         public boolean canDecode(int dataType, Format format, Class<?> type) {
             Assert.requireNonNull(format, "format must not be null");
             Assert.requireNonNull(type, "type must not be null");
-            if (!isTarget(type, this.javaType)) {
+            if (type == Object.class) {
+                if (!this.typeOids.isDefaultNumeric(dataType, this.javaType)) {
+                    return false;
+                }
+            } else if (!isTarget(type, this.javaType)) {
                 return false;
             }
             return this.typeOids.canDecodeTextExtension(dataType, format,

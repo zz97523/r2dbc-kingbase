@@ -21,7 +21,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.client.EncodedParameter;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.util.function.Function;
 
@@ -99,7 +99,7 @@ class StringCodecDelegate<T> extends AbstractCodec<T> implements ArrayCodecDeleg
     }
 
     @Override
-    public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+    public Iterable<PostgresTypeIdentifier> getDataTypes() {
         return this.delegate.getDataTypes();
     }
 

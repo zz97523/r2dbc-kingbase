@@ -60,6 +60,3 @@ hs_err_pid*
 
 **/*.key
 **/*.crt
-
-**/*.key
-**/*.crt

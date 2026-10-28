@@ -41,7 +41,7 @@ import static io.r2dbc.postgresql.message.Format.FORMAT_TEXT;
  *
  * @param <T> the type that is handled by this {@link Codec}
  */
-class ArrayCodec<T> extends AbstractCodec<Object[]> {
+public class ArrayCodec<T> extends AbstractCodec<Object[]> {
 
     static final byte CLOSE_CURLY = '}';
 
@@ -68,7 +68,7 @@ class ArrayCodec<T> extends AbstractCodec<Object[]> {
      * @param delegate         the underlying {@link ArrayCodecDelegate} used to encode/decode data
      * @param componentType    the target component type
      */
-    ArrayCodec(ByteBufAllocator byteBufAllocator, ArrayCodecDelegate<T> delegate, Class<T> componentType) {
+    public ArrayCodec(ByteBufAllocator byteBufAllocator, ArrayCodecDelegate<T> delegate, Class<T> componentType) {
         super(Object[].class);
         this.byteBufAllocator = Assert.requireNonNull(byteBufAllocator, "byteBufAllocator must not be null");
         this.delegate = Assert.requireNonNull(delegate, "delegate must not be null");
@@ -85,7 +85,7 @@ class ArrayCodec<T> extends AbstractCodec<Object[]> {
      * @param delegate         the underlying {@link ArrayCodecDelegate} used to encode/decode data
      * @param componentType    the target component type
      */
-    ArrayCodec(ByteBufAllocator byteBufAllocator, PostgresTypeIdentifier dataType, ArrayCodecDelegate<T> delegate, Class<T> componentType) {
+    public ArrayCodec(ByteBufAllocator byteBufAllocator, PostgresTypeIdentifier dataType, ArrayCodecDelegate<T> delegate, Class<T> componentType) {
         super(Object[].class);
         this.byteBufAllocator = Assert.requireNonNull(byteBufAllocator, "byteBufAllocator must not be null");
         this.dataType = Assert.requireNonNull(dataType, "dataType must not be null");
@@ -103,7 +103,7 @@ class ArrayCodec<T> extends AbstractCodec<Object[]> {
      * @param componentType    the target component type
      * @param delimiter        the delimiter to use when encoding
      */
-    ArrayCodec(ByteBufAllocator byteBufAllocator, PostgresTypeIdentifier dataType, ArrayCodecDelegate<T> delegate, Class<T> componentType, byte delimiter) {
+    public ArrayCodec(ByteBufAllocator byteBufAllocator, PostgresTypeIdentifier dataType, ArrayCodecDelegate<T> delegate, Class<T> componentType, byte delimiter) {
         super(Object[].class);
         this.byteBufAllocator = Assert.requireNonNull(byteBufAllocator, "byteBufAllocator must not be null");
         this.dataType = Assert.requireNonNull(dataType, "dataType must not be null");
@@ -139,7 +139,7 @@ class ArrayCodec<T> extends AbstractCodec<Object[]> {
         return encodeNull(this.dataType.getObjectId());
     }
 
-    static String escapeArrayElement(String s) {
+    public static String escapeArrayElement(String s) {
         StringBuilder b = new StringBuilder("\"");
         for (int j = 0; j < s.length(); j++) {
             char c = s.charAt(j);

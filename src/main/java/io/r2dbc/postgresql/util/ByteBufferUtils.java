@@ -54,8 +54,7 @@ public final class ByteBufferUtils {
         Assert.requireNonNull(s, "s must not be null");
 
         ByteBuffer buffer = StandardCharsets.UTF_8.encode(s.toString());
-        buffer.position(buffer.limit());
-        ((Buffer) buffer).flip();
+        ((Buffer) buffer).position(buffer.limit());
         return buffer;
     }
 

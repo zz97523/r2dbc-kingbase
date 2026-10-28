@@ -95,12 +95,7 @@ public final class ReadyForQuery implements BackendMessage {
         /**
          * The transaction transaction status, represented by the {@code T} byte.
          */
-        TRANSACTION('T'),
-
-        /**
-         * An unknown transaction status. Used as a forward-compatible fallback for status bytes that are not (yet) known to this driver.
-         */
-        UNKNOWN('\0');
+        TRANSACTION('T');
 
         private final char discriminator;
 
@@ -117,7 +112,7 @@ public final class ReadyForQuery implements BackendMessage {
                 case 'T':
                     return TRANSACTION;
             }
-            return UNKNOWN;
+            throw new IllegalArgumentException(String.format("%c is not a valid transaction status", b));
         }
 
     }

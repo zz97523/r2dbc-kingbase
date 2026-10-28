@@ -18,7 +18,7 @@ package io.r2dbc.postgresql.message.backend;
 
 import io.netty.buffer.ByteBuf;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.util.Objects;
 
@@ -29,13 +29,13 @@ import static io.r2dbc.postgresql.message.backend.BackendMessageUtils.readCStrin
  */
 public final class CommandComplete implements BackendMessage {
 
-    private final static String[] NO_ROW_ID_TAGS = {"SELECT", "UPDATE", "DELETE", "MERGE", "COPY", "FETCH", "MOVE",};
+    private final static String[] NO_ROW_ID_TAGS = {"SELECT", "UPDATE", "DELETE", "COPY", "FETCH", "MOVE",};
 
     private final String command;
 
-    private final @Nullable Integer rowId;
+    private final Integer rowId;
 
-    private final @Nullable Long rows;
+    private final Integer rows;
 
     /**
      * Create a new message.
@@ -45,7 +45,7 @@ public final class CommandComplete implements BackendMessage {
      * @param rows    the number of rows affected by the command
      * @throws IllegalArgumentException if {@code command} is {@code null}
      */
-    public CommandComplete(String command, @Nullable Integer rowId, @Nullable Long rows) {
+    public CommandComplete(String command, @Nullable Integer rowId, @Nullable Integer rows) {
         this.command = Assert.requireNonNull(command, "command must not be null");
         this.rowId = rowId;
         this.rows = rows;
@@ -79,7 +79,8 @@ public final class CommandComplete implements BackendMessage {
      *
      * @return the object ID of the inserted row
      */
-    public @Nullable Integer getRowId() {
+    @Nullable
+    public Integer getRowId() {
         return this.rowId;
     }
 
@@ -88,7 +89,8 @@ public final class CommandComplete implements BackendMessage {
      *
      * @return the number of rows affected by the command
      */
-    public @Nullable Long getRows() {
+    @Nullable
+    public Integer getRows() {
         return this.rows;
     }
 
@@ -120,7 +122,7 @@ public final class CommandComplete implements BackendMessage {
             String rowId = tag.substring(index1 + 1, index2);
             String rows = tag.substring(index2 + 1, index3 != -1 ? index3 : tag.length());
 
-            return new CommandComplete(command, Integer.parseInt(rowId), Long.parseLong(rows));
+            return new CommandComplete(command, Integer.parseInt(rowId), Integer.parseInt(rows));
         } else if (isNoRowId(tag)) {
 
             int index1 = tag.indexOf(' ');
@@ -128,7 +130,7 @@ public final class CommandComplete implements BackendMessage {
             String command = tag.substring(0, index1 != -1 ? index1 : tag.length());
             String rows = index1 != -1 ? tag.substring(index1 + 1, index2 != -1 ? index2 : tag.length()) : null;
 
-            return new CommandComplete(command, null, rows != null ? Long.parseLong(rows) : null);
+            return new CommandComplete(command, null, rows != null ? Integer.parseInt(rows) : null);
         } else {
             return new CommandComplete(tag, null, null);
         }

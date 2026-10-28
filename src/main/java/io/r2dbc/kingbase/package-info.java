@@ -20,9 +20,9 @@
  * Mode mapping layers:
  * <ul>
  *   <li>{@link io.r2dbc.kingbase.mysql} — MySQL compatibility mode</li>
- *   <li>{@link io.r2dbc.kingbase.postgresql} — PostgreSQL compatibility mode (identity SQL)</li>
  *   <li>{@link io.r2dbc.kingbase.oracle} — Oracle compatibility mode</li>
  *   <li>{@link io.r2dbc.kingbase.sqlserver} — SQL Server compatibility mode</li>
+ *   <li>{@link io.r2dbc.kingbase.postgresql} — PostgreSQL compatibility mode (identity SQL)</li>
  * </ul>
  * Wire protocol / codecs live in {@code io.r2dbc.postgresql}. Select mode with
  * {@link io.r2dbc.kingbase.KingbaseMode} (or {@link io.r2dbc.kingbase.KingbaseMode#AUTO}).

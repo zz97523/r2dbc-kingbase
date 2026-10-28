@@ -96,12 +96,12 @@ final class ZonedDateTimeCodecUnitTests {
 
     @Test
     void doEncode() {
-        ZonedDateTime zonedDateTime = ZonedDateTime.parse("2023-02-16T15:11:43.356+01:00");
+        ZonedDateTime zonedDateTime = ZonedDateTime.now();
 
         assertThat(new ZonedDateTimeCodec(TEST).doEncode(zonedDateTime))
             .hasFormat(FORMAT_TEXT)
             .hasType(TIMESTAMPTZ.getObjectId())
-            .hasValue(encode(TEST, "2023-02-16 15:11:43.356+01"));
+            .hasValue(encode(TEST, zonedDateTime.toOffsetDateTime().toString()));
     }
 
     @Test

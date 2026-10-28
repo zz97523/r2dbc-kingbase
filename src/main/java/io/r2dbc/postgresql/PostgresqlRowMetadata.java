@@ -20,17 +20,15 @@ import io.r2dbc.postgresql.codec.Codecs;
 import io.r2dbc.postgresql.message.backend.RowDescription;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.spi.RowMetadata;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -44,17 +42,14 @@ final class PostgresqlRowMetadata extends AbstractCollection<String> implements 
 
     private final Map<String, PostgresqlColumnMetadata> nameKeyedColumns;
 
-    private final Map<String, Integer> columnNameIndexMap;
-
     PostgresqlRowMetadata(List<PostgresqlColumnMetadata> columnMetadatas) {
         this.columnMetadatas = Assert.requireNonNull(columnMetadatas, "columnMetadatas must not be null");
-        this.nameKeyedColumns = new LinkedHashMap<>(columnMetadatas.size(), 1);
-        this.columnNameIndexMap = new HashMap<>(columnMetadatas.size(), 1);
+        this.nameKeyedColumns = new LinkedHashMap<>();
 
-        int i = 0;
         for (PostgresqlColumnMetadata columnMetadata : columnMetadatas) {
-            this.nameKeyedColumns.putIfAbsent(columnMetadata.getName(), columnMetadata);
-            this.columnNameIndexMap.putIfAbsent(columnMetadata.getName().toLowerCase(Locale.ROOT), i++);
+            if (!this.nameKeyedColumns.containsKey(columnMetadata.getName())) {
+                this.nameKeyedColumns.put(columnMetadata.getName(), columnMetadata);
+            }
         }
     }
 
@@ -78,7 +73,7 @@ final class PostgresqlRowMetadata extends AbstractCollection<String> implements 
             }
         }
 
-        throw new NoSuchElementException(String.format("Column name '%s' does not exist in column names %s", name, this));
+        throw new NoSuchElementException(String.format("Column name '%s' does not exist in column names %s", name, getColumnNames()));
     }
 
     @Override
@@ -101,6 +96,11 @@ final class PostgresqlRowMetadata extends AbstractCollection<String> implements 
     @Override
     public int hashCode() {
         return Objects.hash(this.columnMetadatas);
+    }
+
+    @Override
+    public Collection<String> getColumnNames() {
+        return this;
     }
 
     @Override
@@ -186,10 +186,6 @@ final class PostgresqlRowMetadata extends AbstractCollection<String> implements 
         }
 
         return column;
-    }
-
-    Map<String, Integer> getColumnNameIndexMap() {
-        return this.columnNameIndexMap;
     }
 
     static PostgresqlRowMetadata toRowMetadata(Codecs codecs, RowDescription rowDescription) {

@@ -21,8 +21,8 @@ import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.client.EncodedParameter;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
-import io.r2dbc.postgresql.util.ByteBufferUtils;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 
 import static io.r2dbc.postgresql.message.Format.FORMAT_TEXT;
@@ -38,7 +38,12 @@ final class JsonByteBufferCodec extends AbstractJsonCodec<ByteBuffer> {
 
     @Override
     ByteBuffer doDecode(ByteBuf buffer, PostgresTypeIdentifier dataType, Format format, Class<? extends ByteBuffer> type) {
-        return ByteBufferUtils.toByteBuffer(buffer);
+
+        ByteBuffer result = ByteBuffer.allocate(buffer.readableBytes());
+        buffer.readBytes(result);
+        ((Buffer) result).flip();
+
+        return result;
     }
 
     @Override

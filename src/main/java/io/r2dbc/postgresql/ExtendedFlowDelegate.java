@@ -44,10 +44,10 @@ import io.r2dbc.postgresql.message.frontend.FrontendMessage;
 import io.r2dbc.postgresql.message.frontend.Parse;
 import io.r2dbc.postgresql.message.frontend.Sync;
 import io.r2dbc.postgresql.util.Operators;
-import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import reactor.core.publisher.SynchronousSink;
+import reactor.util.annotation.Nullable;
 import reactor.util.concurrent.Queues;
 
 import java.util.ArrayList;
@@ -76,21 +76,21 @@ class ExtendedFlowDelegate {
      * Execute the {@code Parse/Bind/Describe/Execute/Sync} portion of the <a href="https://www.postgresql.org/docs/current/static/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY">Extended query</a>
      * message flow.
      *
-     * @param resources  the {@link ConnectionResources} providing access to the {@link Client}
-     * @param factory    the {@link ExceptionFactory}
-     * @param query      the query to execute
-     * @param binding    the {@link Binding} to bind
-     * @param values     the binding values
-     * @param fetchSize  the fetch size to apply. Use a single {@link Execute} with fetch all if {@code fetchSize} is zero. Otherwise, perform multiple roundtrips with smaller
-     *                   {@link Execute} sizes.
-     * @param isCanceled whether the conversation is canceled
+     * @param resources the {@link ConnectionResources} providing access to the {@link Client}
+     * @param factory   the {@link ExceptionFactory}
+     * @param query     the query to execute
+     * @param binding   the {@link Binding} to bind
+     * @param values    the binding values
+     * @param fetchSize the fetch size to apply. Use a single {@link Execute} with fetch all if {@code fetchSize} is zero. Otherwise, perform multiple roundtrips with smaller
+     *                  {@link Execute} sizes.
      * @return the messages received in response to the exchange
      * @throws IllegalArgumentException if {@code bindings}, {@code client}, {@code portalNameSupplier}, or {@code statementName} is {@code null}
      */
-    public static Flux<BackendMessage> runQuery(ConnectionResources resources, ExceptionFactory factory, String query, Binding binding, List<ByteBuf> values, int fetchSize, AtomicBoolean isCanceled) {
+    public static Flux<BackendMessage> runQuery(ConnectionResources resources, ExceptionFactory factory, String query, Binding binding, List<ByteBuf> values, int fetchSize) {
 
         StatementCache cache = resources.getStatementCache();
         Client client = resources.getClient();
+
         String portal = resources.getPortalNameSupplier().get();
 
         Flux<BackendMessage> exchange;
@@ -104,14 +104,14 @@ class ExtendedFlowDelegate {
             if (fetchSize == NO_LIMIT || implicitTransactions) {
                 exchange = fetchAll(operator, client, portal);
             } else {
-                exchange = fetchCursoredWithSync(operator, client, portal, fetchSize, isCanceled);
+                exchange = fetchCursoredWithSync(operator, client, portal, fetchSize);
             }
         } else {
 
             if (fetchSize == NO_LIMIT) {
                 exchange = fetchAll(operator, client, portal);
             } else {
-                exchange = fetchCursoredWithFlush(operator, client, portal, fetchSize, isCanceled);
+                exchange = fetchCursoredWithFlush(operator, client, portal, fetchSize);
             }
         }
 
@@ -147,16 +147,16 @@ class ExtendedFlowDelegate {
     /**
      * Execute a chunked query and indicate to fetch rows in chunks with the {@link Execute} message.
      *
-     * @param operator   the flow operator
-     * @param client     client to use
-     * @param portal     the portal
-     * @param fetchSize  fetch size per roundtrip
-     * @param isCanceled whether the conversation is canceled
+     * @param operator  the flow operator
+     * @param client    client to use
+     * @param portal    the portal
+     * @param fetchSize fetch size per roundtrip
      * @return the resulting message stream
      */
-    private static Flux<BackendMessage> fetchCursoredWithSync(ExtendedFlowOperator operator, Client client, String portal, int fetchSize, AtomicBoolean isCanceled) {
+    private static Flux<BackendMessage> fetchCursoredWithSync(ExtendedFlowOperator operator, Client client, String portal, int fetchSize) {
 
         Sinks.Many<FrontendMessage> requests = Sinks.many().unicast().onBackpressureBuffer(Queues.<FrontendMessage>small().get());
+        AtomicBoolean isCanceled = new AtomicBoolean(false);
         AtomicBoolean done = new AtomicBoolean(false);
 
         MessageFactory factory = () -> operator.getMessages(Arrays.asList(new Execute(portal, fetchSize), Sync.INSTANCE));
@@ -210,16 +210,16 @@ class ExtendedFlowDelegate {
      * Execute a contiguous query and indicate to fetch rows in chunks with the {@link Execute} message. Uses {@link Flush}-based synchronization that creates a cursor. Note that flushing keeps the
      * cursor open even with implicit transactions and this method may not work with newer pgpool implementations.
      *
-     * @param operator   the flow operator
-     * @param client     client to use
-     * @param portal     the portal
-     * @param fetchSize  fetch size per roundtrip
-     * @param isCanceled whether the conversation is canceled
+     * @param operator  the flow operator
+     * @param client    client to use
+     * @param portal    the portal
+     * @param fetchSize fetch size per roundtrip
      * @return the resulting message stream
      */
-    private static Flux<BackendMessage> fetchCursoredWithFlush(ExtendedFlowOperator operator, Client client, String portal, int fetchSize, AtomicBoolean isCanceled) {
+    private static Flux<BackendMessage> fetchCursoredWithFlush(ExtendedFlowOperator operator, Client client, String portal, int fetchSize) {
 
         Sinks.Many<FrontendMessage> requests = Sinks.many().unicast().onBackpressureBuffer(Queues.<FrontendMessage>small().get());
+        AtomicBoolean isCanceled = new AtomicBoolean(false);
 
         MessageFactory factory = () -> operator.getMessages(Arrays.asList(new Execute(portal, fetchSize), Flush.INSTANCE));
 
@@ -313,7 +313,8 @@ class ExtendedFlowDelegate {
 
         private final Binding binding;
 
-        private volatile @Nullable String name;
+        @Nullable
+        private volatile String name;
 
         private final StatementCache cache;
 

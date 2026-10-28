@@ -16,13 +16,11 @@
 
 package io.r2dbc.postgresql.client;
 
-import org.jspecify.annotations.Nullable;
 import reactor.util.Logger;
 import reactor.util.Loggers;
 
-import javax.net.ssl.SSLSession;
+import javax.annotation.Nullable;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
 /**
  * Value object capturing diagnostic connection context. Allows for log-message post-processing with {@link #getMessage(String) if the logger category for
@@ -42,15 +40,15 @@ public final class ConnectionContext {
 
     private static final AtomicLong CONN_ID = new AtomicLong();
 
-    private final @Nullable Integer processId;
+    @Nullable
+    private final Integer processId;
 
-    private final @Nullable String channelId;
+    @Nullable
+    private final String channelId;
 
     private final String connectionCounter;
 
     private final String connectionIdPrefix;
-
-    private final Supplier<SSLSession> sslSession;
 
     /**
      * Create a new {@link ConnectionContext} with a unique connection Id.
@@ -60,15 +58,13 @@ public final class ConnectionContext {
         this.connectionCounter = incrementConnectionCounter();
         this.connectionIdPrefix = getConnectionIdPrefix();
         this.channelId = null;
-        this.sslSession = () -> null;
     }
 
-    private ConnectionContext(@Nullable Integer processId, @Nullable String channelId, String connectionCounter, Supplier<SSLSession> sslSession) {
+    private ConnectionContext(@Nullable Integer processId, @Nullable String channelId, String connectionCounter) {
         this.processId = processId;
         this.channelId = channelId;
         this.connectionCounter = connectionCounter;
         this.connectionIdPrefix = getConnectionIdPrefix();
-        this.sslSession = sslSession;
     }
 
     private String incrementConnectionCounter() {
@@ -105,10 +101,6 @@ public final class ConnectionContext {
         return original;
     }
 
-    public @Nullable SSLSession getSslSession() {
-        return this.sslSession.get();
-    }
-
     /**
      * Create a new {@link ConnectionContext} by associating the {@code channelId}.
      *
@@ -116,17 +108,7 @@ public final class ConnectionContext {
      * @return a new {@link ConnectionContext} with all previously set values and the associated {@code channelId}.
      */
     public ConnectionContext withChannelId(String channelId) {
-        return new ConnectionContext(this.processId, channelId, this.connectionCounter, this.sslSession);
-    }
-
-    /**
-     * Create a new {@link ConnectionContext} by associating the {@code sslSession}.
-     *
-     * @param sslSession the SSL session supplier.
-     * @return a new {@link ConnectionContext} with all previously set values and the associated {@code sslSession}.
-     */
-    public ConnectionContext withSslSession(Supplier<SSLSession> sslSession) {
-        return new ConnectionContext(this.processId, this.channelId, this.connectionCounter, sslSession);
+        return new ConnectionContext(this.processId, channelId, this.connectionCounter);
     }
 
     /**
@@ -136,7 +118,7 @@ public final class ConnectionContext {
      * @return a new {@link ConnectionContext} with all previously set values and the associated {@code processId}.
      */
     public ConnectionContext withProcessId(int processId) {
-        return new ConnectionContext(processId, this.channelId, this.connectionCounter, this.sslSession);
+        return new ConnectionContext(processId, this.channelId, this.connectionCounter);
     }
 
 }

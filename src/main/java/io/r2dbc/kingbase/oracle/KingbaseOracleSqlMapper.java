@@ -18,7 +18,7 @@ package io.r2dbc.kingbase.oracle;
 
 import io.r2dbc.kingbase.KingbaseSqlMapper;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nullable;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

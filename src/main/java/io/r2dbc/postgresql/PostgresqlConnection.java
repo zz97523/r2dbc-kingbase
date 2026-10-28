@@ -17,7 +17,6 @@
 package io.r2dbc.postgresql;
 
 import io.r2dbc.kingbase.KingbaseMode;
-import io.r2dbc.postgresql.api.CopyInBuilder;
 import io.r2dbc.postgresql.api.ErrorDetails;
 import io.r2dbc.postgresql.api.Notification;
 import io.r2dbc.postgresql.api.PostgresTransactionDefinition;
@@ -41,19 +40,17 @@ import io.r2dbc.spi.Option;
 import io.r2dbc.spi.R2dbcException;
 import io.r2dbc.spi.TransactionDefinition;
 import io.r2dbc.spi.ValidationDepth;
-import io.r2dbc.spi.Wrapped;
-import org.jspecify.annotations.Nullable;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.core.CoreSubscriber;
 import reactor.core.Disposable;
-import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
-import reactor.core.scheduler.Scheduler;
 import reactor.util.Logger;
 import reactor.util.Loggers;
+import reactor.util.annotation.Nullable;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
@@ -65,7 +62,7 @@ import static io.r2dbc.postgresql.client.TransactionStatus.OPEN;
 /**
  * An implementation of {@link Connection} for connecting to a PostgreSQL database.
  */
-final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlConnection, Wrapped<Object> {
+final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlConnection {
 
     private final Logger logger = Loggers.getLogger(this.getClass());
 
@@ -77,7 +74,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
 
     private final Codecs codecs;
 
-    private final Flux<Long> validationQuery;
+    private final Flux<Integer> validationQuery;
 
     private final AtomicReference<NotificationAdapter> notificationAdapter = new AtomicReference<>();
 
@@ -227,11 +224,6 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
                 return Mono.empty();
             }
         });
-    }
-
-    @Override
-    public CopyInBuilder copyIn(String sql) {
-        return new PostgresqlCopyIn.Builder(this.resources, sql);
     }
 
     @Override
@@ -388,21 +380,6 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
     }
 
     @Override
-    public <E> E unwrap(Class<E> targetClass) {
-
-        if (targetClass == Scheduler.class) {
-            return targetClass.cast(this.client.getScheduler());
-        }
-
-        return Wrapped.super.unwrap(targetClass);
-    }
-
-    @Override
-    public Object unwrap() {
-        return null;
-    }
-
-    @Override
     public Mono<Boolean> validate(ValidationDepth depth) {
 
         if (depth == ValidationDepth.LOCAL) {
@@ -416,7 +393,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
                 return;
             }
 
-            this.validationQuery.subscribe(new CoreSubscriber<Long>() {
+            this.validationQuery.subscribe(new CoreSubscriber<Integer>() {
 
                 @Override
                 public void onSubscribe(Subscription s) {
@@ -424,7 +401,7 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
                 }
 
                 @Override
-                public void onNext(Long integer) {
+                public void onNext(Integer integer) {
 
                 }
 
@@ -532,7 +509,8 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
 
         private final Sinks.Many<Notification> sink = Sinks.many().multicast().directBestEffort();
 
-        private volatile @Nullable Disposable subscription = null;
+        @Nullable
+        private volatile Disposable subscription = null;
 
         void dispose() {
             Disposable subscription = this.subscription;
@@ -543,31 +521,28 @@ final class PostgresqlConnection implements io.r2dbc.postgresql.api.PostgresqlCo
 
         void register(Client client) {
 
-            BaseSubscriber<NotificationResponse> subscriber = new BaseSubscriber<NotificationResponse>() {
+            this.subscription = client.addNotificationListener(new Subscriber<NotificationResponse>() {
 
                 @Override
-                protected void hookOnSubscribe(Subscription subscription) {
+                public void onSubscribe(Subscription subscription) {
                     subscription.request(Long.MAX_VALUE);
                 }
 
                 @Override
-                public void hookOnNext(NotificationResponse notificationResponse) {
+                public void onNext(NotificationResponse notificationResponse) {
                     NotificationAdapter.this.sink.emitNext(new NotificationResponseWrapper(notificationResponse), Sinks.EmitFailureHandler.FAIL_FAST);
                 }
 
                 @Override
-                public void hookOnError(Throwable throwable) {
+                public void onError(Throwable throwable) {
                     NotificationAdapter.this.sink.emitError(throwable, Sinks.EmitFailureHandler.FAIL_FAST);
                 }
 
                 @Override
-                public void hookOnComplete() {
+                public void onComplete() {
                     NotificationAdapter.this.sink.emitComplete(Sinks.EmitFailureHandler.FAIL_FAST);
                 }
-            };
-
-            this.subscription = subscriber;
-            client.addNotificationListener(subscriber);
+            });
         }
 
         Flux<Notification> getEvents() {

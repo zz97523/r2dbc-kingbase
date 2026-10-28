@@ -18,7 +18,7 @@ package io.r2dbc.kingbase;
 
 import io.r2dbc.postgresql.PostgresqlConnectionConfiguration;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nullable;
 
 import java.time.Duration;
 
@@ -26,7 +26,7 @@ import java.time.Duration;
  * Configuration for {@link KingbaseConnectionFactory}.
  * <p>
  * Builds on the PostgreSQL wire-protocol client; {@link #getMode() mode} selects the Kingbase
- * mapping layer (PostgreSQL / MySQL / Oracle / SQL Server).
+ * mapping layer (PostgreSQL / MySQL / Oracle).
  */
 public final class KingbaseConnectionConfiguration {
 

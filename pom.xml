@@ -24,35 +24,35 @@
 
     <groupId>io.r2dbc.kingbase</groupId>
     <artifactId>r2dbc-kingbase</artifactId>
-    <version>1.2.0.kingbase-SNAPSHOT</version>
+    <version>0.9.4.kingbase-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>R2DBC Kingbase Driver (1.2.x)</name>
-    <description>Kingbase R2DBC driver based on r2dbc-postgresql 1.2.x and the PostgreSQL wire protocol</description>
+    <name>R2DBC Kingbase Driver (0.9.x)</name>
+    <description>Kingbase R2DBC driver based on r2dbc-postgresql 0.9.x and the PostgreSQL wire protocol</description>
     <url>https://github.com/pgjdbc/r2dbc-postgresql</url>
 
     <properties>
-        <assertj.version>3.27.7</assertj.version>
-        <awaitility.version>4.3.0</awaitility.version>
+        <assertj.version>3.23.1</assertj.version>
+        <awaitility.version>4.2.0</awaitility.version>
+        <blockhound.version>1.0.6.RELEASE</blockhound.version>
         <hikari-cp.version>4.0.3</hikari-cp.version>
-        <!-- Build/run with JDK 17+. Upstream kept 1.8 bytecode; this fork uses 17 so IDEA/JUnit 6 compile cleanly. -->
-        <java.version>17</java.version>
-        <jspecify.version>1.0.0</jspecify.version>
-        <junit.version>6.1.0</junit.version>
-        <jmh.version>1.37</jmh.version>
-        <mbr.version>1.0.0</mbr.version>
-        <logback.version>1.5.34</logback.version>
-        <mockito.version>4.11.0</mockito.version>
-        <netty.version>4.2.15.Final</netty.version>
-        <postgresql.version>42.7.11</postgresql.version>
+        <java.version>1.8</java.version>
+        <jsr305.version>3.0.2</jsr305.version>
+        <junit.version>5.9.1</junit.version>
+        <jmh.version>1.33</jmh.version>
+        <mbr.version>0.3.0.RELEASE</mbr.version>
+        <logback.version>1.2.9</logback.version>
+        <mockito.version>4.8.1</mockito.version>
+        <netty.version>4.1.85.Final</netty.version>
+        <postgresql.version>42.5.0</postgresql.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <r2dbc-spi.version>1.0.0.RELEASE</r2dbc-spi.version>
-        <reactor.version>2022.0.22</reactor.version>
-        <scram-client.version>3.4</scram-client.version>
-        <spring-framework.version>5.3.39</spring-framework.version>
-        <testcontainers.version>1.21.4</testcontainers.version>
-        <jts-core.version>1.20.0</jts-core.version>
+        <r2dbc-spi.version>0.9.1.RELEASE</r2dbc-spi.version>
+        <reactor.version>2020.0.24</reactor.version>
+        <scram-client.version>2.1</scram-client.version>
+        <spring-framework.version>5.3.23</spring-framework.version>
+        <testcontainers.version>1.17.5</testcontainers.version>
+        <jts-core.version>1.18.2</jts-core.version>
     </properties>
 
     <licenses>
@@ -128,12 +128,7 @@
         </dependency>
         <dependency>
             <groupId>com.ongres.scram</groupId>
-            <artifactId>scram-client</artifactId>
-            <version>${scram-client.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.ongres.scram</groupId>
-            <artifactId>scram-common</artifactId>
+            <artifactId>client</artifactId>
             <version>${scram-client.version}</version>
         </dependency>
         <dependency>
@@ -142,7 +137,7 @@
         </dependency>
         <dependency>
             <groupId>io.projectreactor.netty</groupId>
-            <artifactId>reactor-netty-core</artifactId>
+            <artifactId>reactor-netty</artifactId>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
@@ -157,9 +152,9 @@
             <optional>true</optional>
         </dependency>
         <dependency>
-            <groupId>org.jspecify</groupId>
-            <artifactId>jspecify</artifactId>
-            <version>${jspecify.version}</version>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+            <version>${jsr305.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -173,6 +168,12 @@
         <dependency>
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor.tools</groupId>
+            <artifactId>blockhound</artifactId>
+            <version>${blockhound.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -262,11 +263,13 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.15.0</version>
+                <version>3.10.1</version>
                 <configuration>
                     <compilerArgs>
+                        <!-- Temporarily disabled for local Kingbase testing; re-enable before upstream commit.
+                        <arg>-Werror</arg>
+                        -->
                         <arg>-Xlint:all</arg>
-                        <arg>-Xlint:-classfile</arg>
                         <arg>-Xlint:-deprecation</arg>
                         <arg>-Xlint:-options</arg>
                         <arg>-Xlint:-processing</arg>
@@ -277,11 +280,10 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.5.0</version>
+                <version>3.2.2</version>
                 <configuration>
                     <archive>
                         <manifest>
@@ -290,22 +292,20 @@
                         </manifest>
                         <manifestEntries>
                             <R2DBC-Specification-Version>${r2dbc-spi.version}</R2DBC-Specification-Version>
-                            <Automatic-Module-Name>r2dbc.kingbase</Automatic-Module-Name>
+                            <Automatic-Module-Name>r2dbc.postgresql</Automatic-Module-Name>
                         </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>
-                <version>3.1.4</version>
+                <version>3.0.0</version>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
-                <version>3.6.3</version>
+                <version>3.1.0</version>
                 <executions>
                     <execution>
                         <id>enforce-no-snapshots</id>
@@ -323,11 +323,31 @@
                     </execution>
                 </executions>
             </plugin>
-
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>animal-sniffer-maven-plugin</artifactId>
+                <version>1.23</version>
+                <executions>
+                    <execution>
+                        <id>check-java-8-api</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <signature>
+                                <groupId>org.codehaus.mojo.signature</groupId>
+                                <artifactId>java18</artifactId>
+                                <version>1.0</version>
+                            </signature>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>3.12.0</version>
+                <version>3.4.1</version>
                 <configuration>
                     <excludePackageNames>
                         io.r2dbc.postgresql.authentication,io.r2dbc.postgresql.client,io.r2dbc.postgresql.message,io.r2dbc.postgresql.util
@@ -337,8 +357,6 @@
                         <link>https://projectreactor.io/docs/core/release/api/</link>
                         <link>https://www.reactive-streams.org/reactive-streams-1.0.3-javadoc/</link>
                     </links>
-                    <doclint>-missing</doclint>
-                    <javadocVersion>1.8</javadocVersion>
                 </configuration>
                 <executions>
                     <execution>
@@ -349,11 +367,10 @@
                     </execution>
                 </executions>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>3.4.0</version>
+                <version>3.2.1</version>
                 <executions>
                     <execution>
                         <id>attach-javadocs</id>
@@ -363,11 +380,10 @@
                     </execution>
                 </executions>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.6</version>
+                <version>2.22.2</version>
                 <configuration>
                     <runOrder>random</runOrder>
                     <excludes>
@@ -381,11 +397,10 @@
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
-                <version>3.5.6</version>
+                <version>2.22.2</version>
                 <executions>
                     <execution>
                         <goals>
@@ -405,11 +420,10 @@
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
-                <version>1.7.3</version>
+                <version>1.3.0</version>
                 <executions>
                     <execution>
                         <id>flatten</id>
@@ -437,20 +451,7 @@
                     </execution>
                 </executions>
             </plugin>
-
-            <plugin>
-                <groupId>org.sonatype.central</groupId>
-                <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>0.11.0</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <autoPublish>true</autoPublish>
-                    <deploymentName>R2DBC Kingbase ${project.version}</deploymentName>
-                    <publishingServerId>central</publishingServerId>
-                </configuration>
-            </plugin>
         </plugins>
-
         <resources>
             <resource>
                 <directory>${project.basedir}</directory>
@@ -470,8 +471,23 @@
     <profiles>
 
         <profile>
-            <id>jmh</id>
+            <id>java18-blockhound</id>
+            <activation>
+                <jdk>1.8</jdk>
+            </activation>
 
+            <dependencies>
+                <dependency>
+                    <groupId>io.projectreactor.tools</groupId>
+                    <artifactId>blockhound-junit-platform</artifactId>
+                    <version>${blockhound.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <profile>
+            <id>jmh</id>
             <dependencies>
                 <dependency>
                     <groupId>com.github.mp911de.microbenchmark-runner</groupId>
@@ -492,13 +508,12 @@
                     <scope>test</scope>
                 </dependency>
             </dependencies>
-
             <build>
                 <plugins>
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>build-helper-maven-plugin</artifactId>
-                        <version>3.6.1</version>
+                        <version>3.3.0</version>
                         <executions>
                             <execution>
                                 <id>add-source</id>
@@ -514,7 +529,6 @@
                             </execution>
                         </executions>
                     </plugin>
-
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
@@ -530,11 +544,10 @@
                             <skip>true</skip>
                         </configuration>
                     </plugin>
-
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>exec-maven-plugin</artifactId>
-                        <version>3.6.3</version>
+                        <version>3.1.0</version>
                         <executions>
                             <execution>
                                 <id>run-benchmarks</id>
@@ -557,7 +570,6 @@
                     </plugin>
                 </plugins>
             </build>
-
             <repositories>
                 <repository>
                     <id>jitpack.io</id>
@@ -568,28 +580,26 @@
 
         <profile>
             <id>snapshot</id>
-
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.sonatype.central</groupId>
-                        <artifactId>central-publishing-maven-plugin</artifactId>
-                    </plugin>
-                </plugins>
-            </build>
+            <distributionManagement>
+                <snapshotRepository>
+                    <id>sonatype</id>
+                    <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+                </snapshotRepository>
+            </distributionManagement>
         </profile>
 
         <profile>
             <id>central</id>
-
             <build>
                 <pluginManagement>
                     <plugins>
+
                         <!-- Sign JARs -->
+
                         <plugin>
                             <groupId>org.apache.maven.plugins</groupId>
                             <artifactId>maven-gpg-plugin</artifactId>
-                            <version>3.2.8</version>
+                            <version>3.0.1</version>
                             <executions>
                                 <execution>
                                     <id>sign-artifacts</id>
@@ -606,22 +616,51 @@
                                 </execution>
                             </executions>
                         </plugin>
+
+                        <!-- Deploy to Sonatype OSS Nexus -->
+
+                        <plugin>
+                            <groupId>org.sonatype.plugins</groupId>
+                            <artifactId>nexus-staging-maven-plugin</artifactId>
+                            <version>1.6.13</version>
+                            <extensions>true</extensions>
+                            <configuration>
+                                <serverId>sonatype</serverId>
+                                <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                                <autoReleaseAfterClose>false</autoReleaseAfterClose>
+                                <keepStagingRepositoryOnFailure>true</keepStagingRepositoryOnFailure>
+                                <skipStagingRepositoryClose>true</skipStagingRepositoryClose>
+                            </configuration>
+                        </plugin>
                     </plugins>
+
                 </pluginManagement>
 
                 <plugins>
+
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
                     </plugin>
 
                     <plugin>
-                        <groupId>org.sonatype.central</groupId>
-                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <groupId>org.sonatype.plugins</groupId>
+                        <artifactId>nexus-staging-maven-plugin</artifactId>
                     </plugin>
+
                 </plugins>
+
             </build>
+
+            <distributionManagement>
+                <repository>
+                    <id>sonatype</id>
+                    <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+                </repository>
+            </distributionManagement>
+
         </profile>
+
     </profiles>
 
 </project>

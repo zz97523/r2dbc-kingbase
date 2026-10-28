@@ -21,14 +21,12 @@ import io.r2dbc.postgresql.message.backend.ErrorResponse;
 import io.r2dbc.postgresql.message.backend.NoticeResponse;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.LogLevel;
-import org.jspecify.annotations.Nullable;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
+import reactor.util.annotation.Nullable;
 
 import java.net.Socket;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -38,24 +36,15 @@ import java.util.function.Consumer;
  */
 public final class ConnectionSettings {
 
-    /**
-     * Default maximum size (in bytes) of a single protocol message/frame. Equal to the largest frame the length field can describe; effectively unbounded.
-     *
-     * @since 1.1.2
-     */
-    public static final int DEFAULT_MAX_MESSAGE_SIZE = Integer.MAX_VALUE - 5;
-
-    private final @Nullable Duration connectTimeout;
+    @Nullable
+    private final Duration connectTimeout;
 
     private final ConnectionProvider connectionProvider;
 
-    private final @Nullable LoopResources loopResources;
-
-    private final int maxMessageSize;
+    @Nullable
+    private final LoopResources loopResources;
 
     private final SSLConfig sslConfig;
-
-    private final Map<String, String> startupOptions;
 
     private final boolean tcpKeepAlive;
 
@@ -65,14 +54,12 @@ public final class ConnectionSettings {
 
     private final LogLevel noticeLogLevel;
 
-    ConnectionSettings(@Nullable Duration connectTimeout, ConnectionProvider connectionProvider, @Nullable LoopResources loopResources, int maxMessageSize,
-                       SSLConfig sslConfig, Map<String, String> startupOptions, boolean tcpKeepAlive, boolean tcpNoDelay, LogLevel errorResponseLogLevel, LogLevel noticeLogLevel) {
+    ConnectionSettings(@Nullable Duration connectTimeout, ConnectionProvider connectionProvider, @Nullable LoopResources loopResources,
+                       SSLConfig sslConfig, boolean tcpKeepAlive, boolean tcpNoDelay, LogLevel errorResponseLogLevel, LogLevel noticeLogLevel) {
         this.connectTimeout = connectTimeout;
         this.connectionProvider = connectionProvider;
         this.loopResources = loopResources;
-        this.maxMessageSize = maxMessageSize;
         this.sslConfig = sslConfig;
-        this.startupOptions = startupOptions;
         this.tcpKeepAlive = tcpKeepAlive;
         this.tcpNoDelay = tcpNoDelay;
         this.errorResponseLogLevel = errorResponseLogLevel;
@@ -94,9 +81,9 @@ public final class ConnectionSettings {
      * @return a {@link Builder} that is pre-initialized with the current values
      */
     public Builder mutate() {
-        return new Builder().connectionProvider(this.connectionProvider).loopResources(this.loopResources).maxMessageSize(this.maxMessageSize)
+        return new Builder().connectionProvider(this.connectionProvider).loopResources(this.loopResources)
             .errorResponseLogLevel(this.errorResponseLogLevel).noticeLogLevel(this.noticeLogLevel).sslConfig(this.sslConfig)
-            .connectTimeout(this.connectTimeout).startupOptions(this.startupOptions).tcpKeepAlive(this.tcpKeepAlive).tcpNoDelay(this.tcpNoDelay);
+            .connectTimeout(this.connectTimeout).tcpKeepAlive(this.tcpKeepAlive).tcpNoDelay(this.tcpNoDelay);
     }
 
     /**
@@ -141,16 +128,8 @@ public final class ConnectionSettings {
         return this.loopResources;
     }
 
-    int getMaxMessageSize() {
-        return this.maxMessageSize;
-    }
-
     SSLConfig getSslConfig() {
         return this.sslConfig;
-    }
-
-    Map<String, String> getStartupOptions() {
-        return this.startupOptions;
     }
 
     boolean isTcpKeepAlive() {
@@ -176,21 +155,17 @@ public final class ConnectionSettings {
      */
     public static final class Builder {
 
-        private @Nullable Duration connectTimeout;
+        private Duration connectTimeout;
 
         private ConnectionProvider connectionProvider = ConnectionProvider.newConnection();
 
-        private @Nullable LoopResources loopResources = null;
-
-        private int maxMessageSize = DEFAULT_MAX_MESSAGE_SIZE;
+        private LoopResources loopResources = null;
 
         private LogLevel errorResponseLogLevel = LogLevel.WARN;
 
         private LogLevel noticeLogLevel = LogLevel.DEBUG;
 
-        private SSLConfig sslConfig = SSLConfig.disabled();
-
-        private Map<String, String> startupOptions = Collections.emptyMap();
+        private SSLConfig sslConfig = new SSLConfig(SSLMode.DISABLE, null, null);
 
         private boolean tcpKeepAlive;
 
@@ -205,8 +180,8 @@ public final class ConnectionSettings {
          * @return a configured {@link ConnectionSettings}
          */
         public ConnectionSettings build() {
-            return new ConnectionSettings(this.connectTimeout, this.connectionProvider, this.loopResources, this.maxMessageSize, this.sslConfig,
-                this.startupOptions, this.tcpKeepAlive, this.tcpNoDelay, this.errorResponseLogLevel, this.noticeLogLevel);
+            return new ConnectionSettings(this.connectTimeout, this.connectionProvider, this.loopResources, this.sslConfig,
+                this.tcpKeepAlive, this.tcpNoDelay, this.errorResponseLogLevel, this.noticeLogLevel);
         }
 
         /**
@@ -235,27 +210,12 @@ public final class ConnectionSettings {
          * Configure the {@link LoopResources}.
          * The {@link LoopResources}'s lifecycle should be managed externally.
          *
-         * @param loopResources the {@link LoopResources}
+         * @param loopResources the {@link LoopResources}.
          * @return this {@link Builder}
          * @since 0.8.5
          */
         public Builder loopResources(@Nullable LoopResources loopResources) {
             this.loopResources = loopResources;
-            return this;
-        }
-
-        /**
-         * Configure the maximum size (in bytes) of a single protocol message/frame. Frames whose announced length exceeds this value fail the connection with a {@code TooLongFrameException}.
-         * Defaults to {@link #DEFAULT_MAX_MESSAGE_SIZE}.
-         *
-         * @param maxMessageSize the maximum message size in bytes
-         * @return this {@link Builder}
-         * @throws IllegalArgumentException if {@code maxMessageSize} is not greater than zero
-         * @since 1.1.2
-         */
-        public Builder maxMessageSize(int maxMessageSize) {
-            Assert.isTrue(maxMessageSize > 0, "maxMessageSize must be greater than zero");
-            this.maxMessageSize = maxMessageSize;
             return this;
         }
 
@@ -290,18 +250,6 @@ public final class ConnectionSettings {
          */
         public Builder sslConfig(SSLConfig sslConfig) {
             this.sslConfig = Assert.requireNonNull(sslConfig, "sslConfig must not be null");
-            return this;
-        }
-
-        /**
-         * Configure the startup options.
-         *
-         * @param startupOptions the startup options
-         * @return this {@link Builder}
-         * @since 1.0
-         */
-        public Builder startupOptions(Map<String, String> startupOptions) {
-            this.startupOptions = Assert.requireNonNull(startupOptions, "startupOptions must not be null");
             return this;
         }
 

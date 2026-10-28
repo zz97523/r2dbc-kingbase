@@ -21,7 +21,6 @@ import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.spi.Clob;
 import io.r2dbc.spi.R2dbcType;
 import io.r2dbc.spi.Type;
-import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.net.InetAddress;
@@ -31,6 +30,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
+
+import io.r2dbc.postgresql.util.Assert;
+import reactor.util.annotation.Nullable;
 
 /**
  * Object IDs for well know PostgreSQL data types.
@@ -582,7 +584,7 @@ public enum PostgresqlObjectId implements Type, PostgresTypeIdentifier {
 
     public static int toInt(long oid) {
         if ((oid & 0xFFFFFFFF00000000L) != 0) {
-            throw new IllegalArgumentException("Value is not an OID: " + oid);
+            throw new IllegalArgumentException("Value is not an OID:" + oid);
         }
 
         return (int) oid;

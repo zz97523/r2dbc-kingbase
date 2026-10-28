@@ -41,6 +41,7 @@ import static io.r2dbc.postgresql.util.TestByteBufAllocator.TEST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 
 /**
@@ -57,6 +58,9 @@ class CachedCodecLookupUnitTest {
 
     @Mock
     AbstractCodec<String> stringCodec;
+
+    @Mock
+    AbstractCodec<String> alternateStringCodec;
 
     @Mock
     AbstractCodec<Integer> integerCodec;
@@ -80,9 +84,13 @@ class CachedCodecLookupUnitTest {
         doReturn(String.class).when(this.stringCodec).type();
         doReturn(Collections.singleton((PostgresTypeIdentifier) VARCHAR)).when(this.stringCodec).getDataTypes();
         doReturn(EnumSet.of(FORMAT_TEXT)).when(this.stringCodec).getFormats();
+        lenient().doReturn(true).when(this.stringCodec)
+            .canDecode(VARCHAR.getObjectId(), FORMAT_TEXT, String.class);
         doReturn(Integer.class).when(this.integerCodec).type();
         doReturn(Collections.singleton((PostgresTypeIdentifier) INT4)).when(this.integerCodec).getDataTypes();
         doReturn(EnumSet.of(FORMAT_TEXT)).when(this.integerCodec).getFormats();
+        lenient().doReturn(true).when(this.integerCodec)
+            .canDecode(INT4.getObjectId(), FORMAT_TEXT, Integer.class);
         codecList.forEach(this.codecs::addFirst);
         this.codecFinder.afterCodecAdded();
 
@@ -103,7 +111,6 @@ class CachedCodecLookupUnitTest {
         assertThat(this.codecFinder.findDecodeCodec(INT2.getObjectId(), FORMAT_TEXT, DefaultCodecsUnitTests.class)).isNull();
     }
 
-    @Test
     void findEncodeCodecDouble() {
         CachedCodecLookup spyCodecs = spy(this.codecFinder);
         Codec<?> doubleCodec = spyCodecs.findEncodeCodec(1.2);
@@ -113,6 +120,29 @@ class CachedCodecLookupUnitTest {
     @Test
     void findEncodeCodecNotFound() {
         assertThat(this.codecFinder.findEncodeCodec(this)).isNull();
+    }
+
+    @Test
+    void revalidatesValueSensitiveEncodeCodecFromClassCache() {
+        doReturn(String.class).when(this.stringCodec).type();
+        doReturn(Collections.singleton((PostgresTypeIdentifier) VARCHAR))
+            .when(this.stringCodec).getDataTypes();
+        doReturn(EnumSet.of(FORMAT_TEXT)).when(this.stringCodec).getFormats();
+        doReturn(true).when(this.stringCodec).canEncode("first");
+        doReturn(false).when(this.stringCodec).canEncode("second");
+
+        doReturn(String.class).when(this.alternateStringCodec).type();
+        doReturn(Collections.singleton((PostgresTypeIdentifier) VARCHAR))
+            .when(this.alternateStringCodec).getDataTypes();
+        doReturn(EnumSet.of(FORMAT_TEXT)).when(this.alternateStringCodec).getFormats();
+        doReturn(true).when(this.alternateStringCodec).canEncode("second");
+
+        this.codecs.addFirst(this.alternateStringCodec);
+        this.codecs.addFirst(this.stringCodec);
+        this.codecFinder.afterCodecAdded();
+
+        assertThat(this.codecFinder.findEncodeCodec("first")).isEqualTo(this.stringCodec);
+        assertThat(this.codecFinder.findEncodeCodec("second")).isEqualTo(this.alternateStringCodec);
     }
 
     @Test

@@ -18,7 +18,7 @@ package io.r2dbc.postgresql.codec;
 
 import io.netty.buffer.ByteBuf;
 import io.r2dbc.postgresql.message.Format;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * Decoder for a specific {@link PostgresTypeIdentifier} and {@link Class type}.
@@ -26,7 +26,7 @@ import org.jspecify.annotations.Nullable;
  * @param <T> the type that is handled by this decoder.
  * @since 0.9
  */
-interface Decoder<T> {
+public interface Decoder<T> {
 
     /**
      * Decode the {@link ByteBuf buffer} and return it as the requested {@link Class type}.

@@ -20,7 +20,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -33,7 +33,7 @@ import static io.r2dbc.postgresql.codec.PostgresqlObjectId.DATE_ARRAY;
 final class LocalDateCodec extends AbstractTemporalCodec<LocalDate> {
 
     LocalDateCodec(ByteBufAllocator byteBufAllocator) {
-        super(LocalDate.class, byteBufAllocator, DATE, DATE_ARRAY, PostgresqlDateTimeFormatter::toString);
+        super(LocalDate.class, byteBufAllocator, DATE, DATE_ARRAY, LocalDate::toString);
     }
 
     @Override

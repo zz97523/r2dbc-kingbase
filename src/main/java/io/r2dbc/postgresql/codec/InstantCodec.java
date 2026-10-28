@@ -20,25 +20,21 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.function.Supplier;
 
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIMESTAMPTZ;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIMESTAMPTZ_ARRAY;
 
 final class InstantCodec extends AbstractTemporalCodec<Instant> {
 
-    private final Supplier<ZoneId> zoneIdSupplier;
-
-    InstantCodec(ByteBufAllocator byteBufAllocator, Supplier<ZoneId> zoneIdSupplier) {
-        super(Instant.class, byteBufAllocator, TIMESTAMPTZ, TIMESTAMPTZ_ARRAY, it -> PostgresqlDateTimeFormatter.toString(it));
-        this.zoneIdSupplier = zoneIdSupplier;
+    InstantCodec(ByteBufAllocator byteBufAllocator) {
+        super(Instant.class, byteBufAllocator, TIMESTAMPTZ, TIMESTAMPTZ_ARRAY, Instant::toString);
     }
 
     @Override
@@ -48,15 +44,11 @@ final class InstantCodec extends AbstractTemporalCodec<Instant> {
         return decodeTemporal(buffer, dataType, format, Instant.class, temporal -> {
 
             if (temporal instanceof LocalDateTime) {
-                ZoneId zoneId = this.zoneIdSupplier.get();
-                ZoneOffset offset = zoneId.getRules().getOffset((LocalDateTime) temporal);
-                return ((LocalDateTime) temporal).toInstant(offset);
+                return ((LocalDateTime) temporal).toInstant(ZoneOffset.UTC);
             }
 
             if (temporal instanceof LocalDate) {
-                ZoneId zoneId = this.zoneIdSupplier.get();
-
-                return ((LocalDate) temporal).atStartOfDay(zoneId).toInstant();
+                return ((LocalDate) temporal).atStartOfDay(ZoneId.systemDefault()).toInstant();
             }
 
             return Instant.from(temporal);

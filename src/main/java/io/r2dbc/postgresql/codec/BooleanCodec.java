@@ -21,20 +21,15 @@ import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.BOOL;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.BOOL_ARRAY;
 
-final class BooleanCodec extends BuiltinCodecSupport<Boolean> implements PrimitiveWrapperCodecProvider<Boolean> {
+final class BooleanCodec extends BuiltinCodecSupport<Boolean> {
 
     BooleanCodec(ByteBufAllocator byteBufAllocator) {
         super(Boolean.class, byteBufAllocator, BOOL, BOOL_ARRAY, it -> it ? "t" : "f");
-    }
-
-    @Override
-    public PrimitiveCodec<Boolean> getPrimitiveCodec() {
-        return new PrimitiveCodec<>(Boolean.TYPE, Boolean.class, this);
     }
 
     @Override

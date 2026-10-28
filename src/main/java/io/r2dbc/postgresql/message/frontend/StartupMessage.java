@@ -20,20 +20,17 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.r2dbc.postgresql.util.Assert;
-import org.jspecify.annotations.Nullable;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
+import reactor.util.annotation.Nullable;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TimeZone;
 
 import static io.netty.util.CharsetUtil.UTF_8;
 import static io.r2dbc.postgresql.message.frontend.FrontendMessageUtils.writeByte;
 import static io.r2dbc.postgresql.message.frontend.FrontendMessageUtils.writeCString;
-import static io.r2dbc.postgresql.message.frontend.FrontendMessageUtils.writeCStringASCII;
 import static io.r2dbc.postgresql.message.frontend.FrontendMessageUtils.writeCStringUTF8;
 import static io.r2dbc.postgresql.message.frontend.FrontendMessageUtils.writeLengthPlaceholder;
 import static io.r2dbc.postgresql.message.frontend.FrontendMessageUtils.writeShort;
@@ -44,39 +41,50 @@ import static io.r2dbc.postgresql.message.frontend.FrontendMessageUtils.writeSiz
  */
 public final class StartupMessage implements FrontendMessage {
 
+    private static final ByteBuf APPLICATION_NAME = Unpooled.copiedBuffer("application_name", UTF_8).asReadOnly();
+
+    private static final ByteBuf CLIENT_ENCODING = Unpooled.copiedBuffer("client_encoding", UTF_8).asReadOnly();
+
     private static final ByteBuf DATABASE = Unpooled.copiedBuffer("database", UTF_8).asReadOnly();
+
+    private static final ByteBuf DATE_STYLE = Unpooled.copiedBuffer("DateStyle", UTF_8).asReadOnly();
+
+    private static final ByteBuf EXTRA_FLOAT_DIGITS = Unpooled.copiedBuffer("extra_float_digits", UTF_8).asReadOnly();
+
+    private static final ByteBuf ISO = Unpooled.copiedBuffer("ISO", UTF_8).asReadOnly();
+
+    private static final ByteBuf NUMERAL_2 = Unpooled.copiedBuffer("2", UTF_8).asReadOnly();
+
+    private static final ByteBuf SYSTEM_TIME_ZONE = Unpooled.copiedBuffer(TimeZone.getDefault().getID(), UTF_8).asReadOnly();
+
+    private static final ByteBuf TIMEZONE = Unpooled.copiedBuffer("TimeZone", UTF_8).asReadOnly();
 
     private static final ByteBuf USER = Unpooled.copiedBuffer("user", UTF_8).asReadOnly();
 
-    private static final Map<String, ByteBuf> STATIC_STRINGS = new HashMap<>();
+    private static final ByteBuf UTF8 = Unpooled.copiedBuffer("utf8", UTF_8).asReadOnly();
 
-    static {
-
-        List<String> strings = Arrays.asList("2", "application_name", "client_encoding", "DateStyle", "extra_float_digits", "ISO", "TimeZone", "utf8");
-
-        for (String string : strings) {
-            STATIC_STRINGS.put(string, Unpooled.copiedBuffer(string, UTF_8).asReadOnly());
-        }
-    }
+    private final String applicationName;
 
     private final String database;
 
-    private final StartupParameterProvider parameterProvider;
+    private final Map<String, String> options;
 
     private final String username;
 
     /**
      * Create a new message.
      *
-     * @param database          the database to connect to. Defaults to the username.
-     * @param username          the database username to connect as
-     * @param parameterProvider the provider providing database connection options
+     * @param applicationName the name of the application connecting to the database
+     * @param database        the database to connect to. Defaults to the user name.
+     * @param username        the database user name to connect as
+     * @param options         database connection options
      * @throws IllegalArgumentException if {@code applicationName} or {@code username} is {@code null}
      */
-    public StartupMessage(@Nullable String database, String username, StartupParameterProvider parameterProvider) {
+    public StartupMessage(String applicationName, @Nullable String database, String username, @Nullable Map<String, String> options) {
+        this.applicationName = Assert.requireNonNull(applicationName, "applicationName must not be null");
         this.database = database;
         this.username = Assert.requireNonNull(username, "username must not be null");
-        this.parameterProvider = Assert.requireNonNull(parameterProvider, "parameterProvider must not be null");
+        this.options = options;
     }
 
     @Override
@@ -94,9 +102,18 @@ public final class StartupMessage implements FrontendMessage {
                 writeParameter(out, DATABASE, this.database);
             }
 
-            ByteBufParameterWriter writer = new ByteBufParameterWriter(out);
-            this.parameterProvider.accept(writer);
-
+            writeParameter(out, APPLICATION_NAME, this.applicationName);
+            writeParameter(out, CLIENT_ENCODING, UTF8);
+            writeParameter(out, DATE_STYLE, ISO);
+            writeParameter(out, EXTRA_FLOAT_DIGITS, NUMERAL_2);
+            writeParameter(out, TIMEZONE, SYSTEM_TIME_ZONE);
+            if (this.options != null) {
+                for (Map.Entry<String, String> option : this.options.entrySet()) {
+                    ByteBuf key = Unpooled.copiedBuffer(option.getKey(), UTF_8);
+                    writeParameter(out, key, option.getValue());
+                    key.release();
+                }
+            }
             writeByte(out, 0);
 
             return writeSize(out, 0);
@@ -112,85 +129,35 @@ public final class StartupMessage implements FrontendMessage {
             return false;
         }
         StartupMessage that = (StartupMessage) o;
-        return
+        return Objects.equals(this.applicationName, that.applicationName) &&
             Objects.equals(this.database, that.database) &&
-                Objects.equals(this.username, that.username);
+            Objects.equals(this.username, that.username) &&
+            Objects.equals(this.options, that.options);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.database, this.username);
+        return Objects.hash(this.applicationName, this.database, this.username, this.options);
     }
 
     @Override
     public String toString() {
         return "StartupMessage{" +
-            "database='" + this.database + '\'' +
-            ", username='" + this.username + '\'' +
+            "applicationName='" + applicationName + '\'' +
+            ", database='" + database + '\'' +
+            ", username='" + username + '\'' +
+            ", options='" + options + '\'' +
             '}';
     }
 
-    static void writeParameter(ByteBuf out, ByteBuf key, String value) {
+    private void writeParameter(ByteBuf out, ByteBuf key, String value) {
         writeCString(out, key);
         writeCStringUTF8(out, value);
     }
 
-    /**
-     * Writer interface to expose startup parameters.
-     */
-    public interface ParameterWriter {
-
-        /**
-         * Write a parameter value along its name.
-         *
-         * @param key   the parameter name
-         * @param value the parameter value
-         */
-        void write(String key, String value);
-
-    }
-
-    static class ByteBufParameterWriter implements ParameterWriter {
-
-        private final ByteBuf out;
-
-        ByteBufParameterWriter(ByteBuf out) {
-            this.out = out;
-        }
-
-        @Override
-        public void write(String key, String value) {
-
-            ByteBuf binaryKey = STATIC_STRINGS.get(key);
-            ByteBuf binaryValue = STATIC_STRINGS.get(value);
-
-            if (binaryKey == null) {
-                writeCStringASCII(this.out, key);
-            } else {
-                writeCString(this.out, binaryKey);
-            }
-
-            if (binaryValue == null) {
-                writeCStringUTF8(this.out, value);
-            } else {
-                writeCString(this.out, binaryValue);
-            }
-        }
-
-    }
-
-    /**
-     * Interface that provides startup parameters into a {@link ParameterWriter}.
-     */
-    public interface StartupParameterProvider {
-
-        /**
-         * Provide parameters to a {@link ParameterWriter}.
-         *
-         * @param writer the writer object accepting parameters
-         */
-        void accept(ParameterWriter writer);
-
+    private void writeParameter(ByteBuf out, ByteBuf key, ByteBuf value) {
+        writeCString(out, key);
+        writeCString(out, value);
     }
 
 }

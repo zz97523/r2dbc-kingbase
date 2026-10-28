@@ -37,14 +37,7 @@ public enum TransactionStatus {
     /**
      * Indicates that there is an open transaction.
      */
-    OPEN(ReadyForQuery.TransactionStatus.TRANSACTION),
-
-    /**
-     * Indicates that the transaction status reported by the backend is unknown to this driver.
-     *
-     * @since 1.1.2
-     */
-    UNKNOWN(ReadyForQuery.TransactionStatus.UNKNOWN);
+    OPEN(ReadyForQuery.TransactionStatus.TRANSACTION);
 
     private static final TransactionStatus CACHE[] = values();
 
@@ -62,7 +55,7 @@ public enum TransactionStatus {
                 return transactionStatus;
             }
         }
-        return UNKNOWN;
+        throw new IllegalArgumentException(String.format("%s is not a valid transaction status", t));
     }
 
 }

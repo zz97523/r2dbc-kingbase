@@ -17,31 +17,25 @@
 package io.r2dbc.postgresql;
 
 import io.netty.handler.ssl.SslContextBuilder;
-import io.r2dbc.postgresql.client.ChannelBindingMode;
+import io.r2dbc.kingbase.KingbaseMode;
 import io.r2dbc.postgresql.client.DefaultHostnameVerifier;
 import io.r2dbc.postgresql.client.SSLMode;
-import io.r2dbc.postgresql.client.SSLNegotiation;
 import io.r2dbc.postgresql.codec.Codecs;
 import io.r2dbc.postgresql.codec.Json;
 import io.r2dbc.postgresql.extension.Extension;
-import io.r2dbc.kingbase.KingbaseMode;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.LogLevel;
 import io.r2dbc.spi.ConnectionFactoryOptions;
 import io.r2dbc.spi.ConnectionFactoryProvider;
 import io.r2dbc.spi.Option;
-import org.reactivestreams.Publisher;
 import reactor.netty.resources.LoopResources;
 
 import javax.net.ssl.HostnameVerifier;
 import java.time.Duration;
-import java.time.ZoneId;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static io.r2dbc.spi.ConnectionFactoryOptions.CONNECT_TIMEOUT;
 import static io.r2dbc.spi.ConnectionFactoryOptions.DATABASE;
@@ -49,7 +43,6 @@ import static io.r2dbc.spi.ConnectionFactoryOptions.DRIVER;
 import static io.r2dbc.spi.ConnectionFactoryOptions.HOST;
 import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
 import static io.r2dbc.spi.ConnectionFactoryOptions.PORT;
-import static io.r2dbc.spi.ConnectionFactoryOptions.PROTOCOL;
 import static io.r2dbc.spi.ConnectionFactoryOptions.SSL;
 import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
 
@@ -69,34 +62,11 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
     public static final Option<Boolean> AUTODETECT_EXTENSIONS = Option.valueOf("autodetectExtensions");
 
     /**
-     * Channel binding preference for SCRAM (SASL) authentication. Allowed values: {@code disable}, {@code prefer} (default), {@code require}.
-     *
-     * @since 1.1.2
-     */
-    public static final Option<ChannelBindingMode> CHANNEL_BINDING = Option.valueOf("channelBinding");
-
-    /**
-     * Channel binding preference alias (libpq style).
-     *
-     * @since 1.1.2
-     */
-    public static final Option<ChannelBindingMode> CHANNEL_BINDING_ALIAS = Option.valueOf("channel_binding");
-
-    /**
      * Compatibility query mode for cursored query execution.
      *
      * @since 0.8.7
      */
     public static final Option<Boolean> COMPATIBILITY_MODE = Option.valueOf("compatibilityMode");
-
-    /**
-     * KingbaseES client-side compatibility mode ({@code auto}, {@code postgresql}, {@code mysql},
-     * {@code oracle}, {@code sqlserver}). Defaults to {@link KingbaseMode#POSTGRESQL} for the
-     * postgresql driver. Prefer {@code driver=kingbase} (defaults to {@code auto}) against KingbaseES.
-     *
-     * @since 1.1
-     */
-    public static final Option<KingbaseMode> KINGBASE_MODE = Option.valueOf("kingbaseMode");
 
     /**
      * Error Response Log Level.
@@ -121,18 +91,11 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
     public static final Option<Boolean> FORCE_BINARY = Option.valueOf("forceBinary");
 
     /**
-     * Host status recheck time.
-     *
-     * @since 1.0
+     * KingbaseES client-side compatibility mode ({@code auto}, {@code postgresql}, {@code mysql},
+     * {@code oracle}, {@code sqlserver}). Defaults to {@link KingbaseMode#POSTGRESQL} for the
+     * postgresql driver. Prefer {@code driver=kingbase} (defaults to {@code auto}) against KingbaseES.
      */
-    public static final Option<Duration> HOST_RECHECK_TIME = Option.valueOf("hostRecheckTime");
-
-    /**
-     * Load balance hosts.
-     *
-     * @since 1.0
-     */
-    public static final Option<Boolean> LOAD_BALANCE_HOSTS = Option.valueOf("loadBalanceHosts");
+    public static final Option<KingbaseMode> KINGBASE_MODE = Option.valueOf("kingbaseMode");
 
     /**
      * Lock timeout.
@@ -147,13 +110,6 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
      * @since 0.8.5
      */
     public static final Option<LoopResources> LOOP_RESOURCES = Option.valueOf("loopResources");
-
-    /**
-     * Maximum size (in bytes) of a single protocol message/frame received from the server. Defaults to effectively unbounded.
-     *
-     * @since 1.1.2
-     */
-    public static final Option<Integer> MAX_MESSAGE_SIZE = Option.valueOf("maxMessageSize");
 
     /**
      * Notice Response Log Level.
@@ -174,11 +130,6 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
      * Legacy driver option value.
      */
     public static final String LEGACY_POSTGRESQL_DRIVER = "postgres";
-
-    /**
-     * Failover driver protocol.
-     */
-    public static final String FAILOVER_PROTOCOL = "failover";
 
     /**
      * Configure whether {@link Codecs codecs} should prefer attached data buffers. The default is {@code false}, meaning that codecs will copy data from the input buffer into a {@code byte[]}
@@ -245,20 +196,6 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
     public static final Option<SSLMode> SSL_MODE_ALIAS = Option.valueOf("sslmode");
 
     /**
-     * Ssl negotiation mechanism. Default: Postgres
-     *
-     * @since 1.1
-     */
-    public static final Option<SSLNegotiation> SSL_NEGOTIATION = Option.valueOf("sslNegotiation");
-
-    /**
-     * Ssl negotiation mechanism alias. Default: Postgres
-     *
-     * @since 1.1
-     */
-    public static final Option<SSLNegotiation> SSL_NEGOTIATION_ALIAS = Option.valueOf("sslnegotiation");
-
-    /**
      * SSL key password
      */
     public static final Option<String> SSL_PASSWORD = Option.valueOf("sslPassword");
@@ -269,25 +206,11 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
     public static final Option<String> SSL_ROOT_CERT = Option.valueOf("sslRootCert");
 
     /**
-     * Configure whether to use SNI on SSL connections. Enabled by default.
-     *
-     * @since 1.0.5
-     */
-    public static final Option<Boolean> SSL_SNI = Option.valueOf("sslSni");
-
-    /**
      * Statement timeout.
      *
      * @since 0.8.9
      */
     public static final Option<Duration> STATEMENT_TIMEOUT = ConnectionFactoryOptions.STATEMENT_TIMEOUT;
-
-    /**
-     * Target server type. Allowed values: any, primary, secondary, preferSecondary.
-     *
-     * @since 1.0
-     */
-    public static final Option<MultiHostConnectionStrategy.TargetServerType> TARGET_SERVER_TYPE = Option.valueOf("targetServerType");
 
     /**
      * Enable TCP KeepAlive.
@@ -302,13 +225,6 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
      * @since 0.8.4
      */
     public static final Option<Boolean> TCP_NODELAY = Option.valueOf("tcpNoDelay");
-
-    /**
-     * Configure the session time zone.
-     *
-     * @since 1.0
-     */
-    public static final Option<TimeZone> TIME_ZONE = Option.valueOf("timeZone");
 
     /**
      * Returns a new {@link PostgresqlConnectionConfiguration.Builder} configured with the given {@link ConnectionFactoryOptions}.
@@ -346,7 +262,6 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
      * @return this {@link PostgresqlConnectionConfiguration.Builder}
      * @throws IllegalArgumentException if {@code options} is {@code null}
      */
-    @SuppressWarnings("unchecked")
     private static PostgresqlConnectionConfiguration.Builder fromConnectionFactoryOptions(ConnectionFactoryOptions options) {
 
         Assert.requireNonNull(options, "connectionFactoryOptions must not be null");
@@ -355,44 +270,9 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
 
         OptionMapper mapper = OptionMapper.create(options);
 
-        String protocol = (String) options.getValue(PROTOCOL);
-        if (FAILOVER_PROTOCOL.equals(protocol)) {
-            mapper.from(HOST_RECHECK_TIME).map(OptionMapper::toDuration).to(builder::hostRecheckTime);
-            mapper.from(LOAD_BALANCE_HOSTS).map(OptionMapper::toBoolean).to(builder::loadBalanceHosts);
-            mapper.from(TARGET_SERVER_TYPE).map(value -> {
-
-                if (value instanceof MultiHostConnectionStrategy.TargetServerType) {
-                    return (MultiHostConnectionStrategy.TargetServerType) value;
-                }
-
-                return MultiHostConnectionStrategy.TargetServerType.fromValue(value.toString());
-
-            }).to(builder::targetServerType);
-
-            String hosts = "" + options.getRequiredValue(HOST);
-
-            for (String host : hosts.split(",")) {
-                String[] hostParts = host.split(":");
-                if (hostParts.length == 1) {
-                    builder.addHost(host);
-                } else {
-                    builder.addHost(hostParts[0], OptionMapper.toInteger(hostParts[1]));
-                }
-            }
-            setupSsl(builder, mapper);
-        } else {
-            mapper.fromTyped(SOCKET).to(builder::socket).otherwise(() -> {
-                builder.host("" + options.getRequiredValue(HOST));
-                setupSsl(builder, mapper);
-            });
-        }
-
         mapper.fromTyped(APPLICATION_NAME).to(builder::applicationName);
         mapper.from(AUTODETECT_EXTENSIONS).map(OptionMapper::toBoolean).to(builder::autodetectExtensions);
-        mapper.from(CHANNEL_BINDING).map(PostgresqlConnectionFactoryProvider::toChannelBindingMode).to(builder::channelBinding).otherwise(() ->
-            mapper.from(CHANNEL_BINDING_ALIAS).map(PostgresqlConnectionFactoryProvider::toChannelBindingMode).to(builder::channelBinding));
         mapper.from(COMPATIBILITY_MODE).map(OptionMapper::toBoolean).to(builder::compatibilityMode);
-        mapper.from(KINGBASE_MODE).map(PostgresqlConnectionFactoryProvider::toKingbaseMode).to(builder::kingbaseMode);
         mapper.from(CONNECT_TIMEOUT).map(OptionMapper::toDuration).to(builder::connectTimeout);
         mapper.fromTyped(CURRENT_SCHEMA).to(builder::schema).otherwise(() -> mapper.fromTyped(SCHEMA).to(builder::schema));
         mapper.fromTyped(DATABASE).to(builder::database);
@@ -400,49 +280,23 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
         mapper.fromTyped(EXTENSIONS).to(extensions -> extensions.forEach(builder::extendWith));
         mapper.from(FETCH_SIZE).map(OptionMapper::toInteger).to(builder::fetchSize);
         mapper.from(FORCE_BINARY).map(OptionMapper::toBoolean).to(builder::forceBinary);
+        mapper.from(KINGBASE_MODE).map(PostgresqlConnectionFactoryProvider::toKingbaseMode).to(builder::kingbaseMode);
         mapper.from(LOCK_WAIT_TIMEOUT).map(OptionMapper::toDuration).to(builder::lockWaitTimeout);
         mapper.fromTyped(LOOP_RESOURCES).to(builder::loopResources);
-        mapper.from(MAX_MESSAGE_SIZE).map(OptionMapper::toInteger).to(builder::maxMessageSize);
         mapper.from(NOTICE_LOG_LEVEL).map(it -> OptionMapper.toEnum(it, LogLevel.class)).to(builder::noticeLogLevel);
         mapper.from(OPTIONS).map(PostgresqlConnectionFactoryProvider::convertToMap).to(builder::options);
+        mapper.fromTyped(PASSWORD).to(builder::password);
         mapper.from(PORT).map(OptionMapper::toInteger).to(builder::port);
         mapper.from(PREFER_ATTACHED_BUFFERS).map(OptionMapper::toBoolean).to(builder::preferAttachedBuffers);
         mapper.from(PREPARED_STATEMENT_CACHE_QUERIES).map(OptionMapper::toInteger).to(builder::preparedStatementCacheQueries);
+        mapper.fromTyped(SOCKET).to(builder::socket).otherwise(() -> {
+            builder.host("" + options.getRequiredValue(HOST));
+            setupSsl(builder, mapper);
+        });
         mapper.from(STATEMENT_TIMEOUT).map(OptionMapper::toDuration).to(builder::statementTimeout);
         mapper.from(TCP_KEEPALIVE).map(OptionMapper::toBoolean).to(builder::tcpKeepAlive);
         mapper.from(TCP_NODELAY).map(OptionMapper::toBoolean).to(builder::tcpNoDelay);
-        mapper.from(TIME_ZONE).map(it -> {
-
-            if (it instanceof TimeZone) {
-                return (TimeZone) it;
-            }
-
-            if (it instanceof ZoneId) {
-                return TimeZone.getTimeZone((ZoneId) it);
-            }
-
-            return TimeZone.getTimeZone(it.toString());
-        }).to(builder::timeZone);
-
-        Object user = options.getRequiredValue(USER);
-        Object password = options.getValue(PASSWORD);
-
-        if (user instanceof Supplier) {
-            builder.username((Supplier<String>) user);
-        } else if (user instanceof Publisher) {
-            builder.username((Publisher<String>) user);
-        } else {
-            builder.username("" + user);
-        }
-        if (password != null) {
-            if (password instanceof Supplier) {
-                builder.password((Supplier<CharSequence>) password);
-            } else if (password instanceof Publisher) {
-                builder.password((Publisher<CharSequence>) password);
-            } else {
-                builder.password((CharSequence) password);
-            }
-        }
+        builder.username("" + options.getRequiredValue(USER));
 
         return builder;
     }
@@ -459,16 +313,11 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
             mapper.from(SSL_MODE_ALIAS).map(PostgresqlConnectionFactoryProvider::toSSLMode).to(builder::sslMode);
         });
 
-        mapper.from(SSL_NEGOTIATION).map(PostgresqlConnectionFactoryProvider::toSSLNegotiation).to(builder::sslNegotiation).otherwise(() -> {
-            mapper.from(SSL_NEGOTIATION_ALIAS).map(PostgresqlConnectionFactoryProvider::toSSLNegotiation).to(builder::sslNegotiation);
-        });
-
         mapper.fromTyped(SSL_CERT).to(builder::sslCert);
         mapper.fromTyped(SSL_CONTEXT_BUILDER_CUSTOMIZER).to(builder::sslContextBuilderCustomizer);
         mapper.fromTyped(SSL_KEY).to(builder::sslKey);
         mapper.fromTyped(SSL_ROOT_CERT).to(builder::sslRootCert);
         mapper.fromTyped(SSL_PASSWORD).to(builder::sslPassword);
-        mapper.fromTyped(SSL_SNI).map(OptionMapper::toBoolean).to(builder::sslSni);
 
         mapper.from(SSL_HOSTNAME_VERIFIER).map(it -> {
 
@@ -496,28 +345,12 @@ public final class PostgresqlConnectionFactoryProvider implements ConnectionFact
         return (SSLMode) it;
     }
 
-    private static ChannelBindingMode toChannelBindingMode(Object it) {
-        if (it instanceof String) {
-            return ChannelBindingMode.fromValue(it.toString());
-        }
-
-        return (ChannelBindingMode) it;
-    }
-
     private static KingbaseMode toKingbaseMode(Object it) {
         if (it instanceof KingbaseMode) {
             return (KingbaseMode) it;
         }
 
         return KingbaseMode.fromValue(it.toString());
-    }
-
-    private static SSLNegotiation toSSLNegotiation(Object it) {
-        if (it instanceof String) {
-            return SSLNegotiation.fromValue(it.toString());
-        }
-
-        return (SSLNegotiation) it;
     }
 
     @SuppressWarnings("unchecked")

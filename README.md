@@ -1,15 +1,13 @@
-# PostgreSQL R2DBC Driver [![Java CI with Maven](https://github.com/pgjdbc/r2dbc-postgresql/actions/workflows/ci.yml/badge.svg)](https://github.com/pgjdbc/r2dbc-postgresql/actions/workflows/ci.yml) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/org.postgresql/r2dbc-postgresql/badge.svg)](https://maven-badges.herokuapp.com/maven-central/org.postgresql/r2dbc-postgresql)
+# PostgreSQL R2DBC Driver [![Java CI with Maven](https://github.com/pgjdbc/r2dbc-postgresql/workflows/Java%20CI%20with%20Maven/badge.svg?branch=main)](https://github.com/pgjdbc/r2dbc-postgresql/actions?query=workflow%3A%22Java+CI+with+Maven%22+branch%3Amain) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/org.postgresql/r2dbc-postgresql/badge.svg)](https://maven-badges.herokuapp.com/maven-central/org.postgresql/r2dbc-postgresql)
 
 This project contains the [PostgreSQL][p] implementation of the [R2DBC SPI][r].  This implementation is not intended to be used directly, but rather to be used as the backing implementation for a humane client library to delegate to.
 
 This driver provides the following features:
 
-* Implements R2DBC 1.0
+* Implements R2DBC 0.9
 * Login with username/password (MD5, SASL/SCRAM) or implicit trust
-* Supports credential rotation by providing `Supplier<String>` or `Publisher<String>` 
 * SCRAM authentication
 * Unix Domain Socket transport
-* Connection Fail-over supporting multiple hosts
 * TLS
 * Explicit transactions
 * Notifications
@@ -69,48 +67,40 @@ Mono<Connection> connectionMono = Mono.from(connectionFactory.create());
 
 **Supported ConnectionFactory Discovery Options**
 
-| Option                          | Description                                                                                                                                                                                                                                                                                                                  
-|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-| `ssl`                           | Enables SSL usage (`SSLMode.VERIFY_FULL`).                                                                                                                                                                                                                                                                                   
-| `driver`                        | Must be `postgresql`.                                                                                                                                                                                                                                                                                                        
-| `protocol`                      | Protocol specifier. Empty to use single-host operations. Supported: `failover` for multi-server failover operations. _(Optional)_                                                                                                                                                                                            
-| `host`                          | Server hostname to connect to. May contain a comma-separated list of hosts with ports when using the `failover` protocol.                                                                                                                                                                                                    
-| `port`                          | Server port to connect to. Defaults to `5432`. _(Optional)_                                                                                                                                                                                                                                                                  
-| `socket`                        | Unix Domain Socket path to connect to as alternative to TCP. _(Optional)_                                                                                                                                                                                                                                                    
-| `username`                      | Login username. Can be a plain `String`, `Supplier<String>`, or `Publisher<String>`.                                                                                                                                                                                                                                         
-| `password`                      | Login password. Can be a plain `CharSequence`, `Supplier<CharSequence>`, or `Publisher<CharSequence>`. _(Optional when using TLS Certificate authentication)_                                                                                                                                                                
-| `database`                      | Database to select. _(Optional)_                                                                                                                                                                                                                                                                                             
-| `applicationName`               | The name of the application connecting to the database. Defaults to `r2dbc-postgresql`. _(Optional)_                                                                                                                                                                                                                         
-| `autodetectExtensions`          | Whether to auto-detect and register `Extension`s from the class path. Defaults to `true`. _(Optional)_                                                                                                                                                                                                                       
-| `channelBinding`                | Channel binding mode for SCRAM (SASL) authentication, see `ChannelBindingMode` enum. Supported values: `disable`, `prefer`, `require`. Defaults to `prefer`. Use `require` to fail authentication unless the connection is encrypted and the server offers `SCRAM-SHA-256-PLUS`, preventing a silent downgrade. _(Optional)_ 
-| `compatibilityMode`             | Enable compatibility mode for cursored fetching. Required when using newer pgpool versions. Defaults to `false`. _(Optional)_                                                                                                                                                                                                
-| `errorResponseLogLevel`         | Log level for error responses. Any of `OFF`, `DEBUG`, `INFO`, `WARN` or `ERROR`  Defaults to `DEBUG`. _(Optional)_                                                                                                                                                                                                           
-| `extensions`                    | Collection of `Extension` to provide additional extensions when creating a connection factory. Defaults to empty. _(Optional)_                                                                                                                                                                                               
-| `fetchSize`                     | The default number of rows to return when fetching results. Defaults to `0` for unlimited. _(Optional)_                                                                                                                                                                                                                      
-| `forceBinary`                   | Whether to force binary transfer. Defaults to `false`. _(Optional)_                                                                                                                                                                                                                                                          
-| `hostRecheckTime`               | Host status recheck time when using multi-server operations. Defaults to `10 seconds`. _(Optional)_                                                                                                                                                                                                                          
-| `loadBalanceHosts`              | Whether to shuffle the list of given hostnames before connect when using multi-server operations. Defaults to `true`. _(Optional)_                                                                                                                                                                                           
-| `loopResources`                 | TCP/Socket LoopResources (depends on the endpoint connection type). _(Optional)_                                                                                                                                                                                                                                             
-| `lockWaitTimeout`               | Lock wait timeout. _(Optional)_                                                                                                                                                                                                                                                                                              
-| `maxMessageSize`                | Maximum size (in bytes) of a single protocol message/frame received from the server. Frames whose announced length exceeds this fail the connection instead of being buffered. Defaults to effectively unbounded. Keep it above the largest expected row or `COPY` chunk (field values may reach 1 GB). _(Optional)_         
-| `noticeLogLevel`                | Log level for error responses. Any of `OFF`, `DEBUG`, `INFO`, `WARN` or `ERROR`  Defaults to `DEBUG`. _(Optional)_                                                                                                                                                                                                           
-| `preferAttachedBuffers`         | Configure whether codecs should prefer attached data buffers. The default is `false`, meaning that codecs will copy data from the input buffer into a byte array. Enabling attached buffers requires consumption of values such as `Json`  to avoid memory leaks.                                                            
-| `preparedStatementCacheQueries` | Determine the number of queries that are cached in each connection. The default is `-1`, meaning there's no limit. The value of `0` disables the cache. Any other value specifies the cache size.                                                                                                                            
-| `options`                       | A `Map<String, String>` of connection parameters. These are applied to each database connection created by the `ConnectionFactory`. Useful for setting generic [PostgreSQL connection parameters][psql-runtime-config]. _(Optional)_                                                                                         
-| `schema`                        | The search path to set. _(Optional)_                                                                                                                                                                                                                                                                                         
-| `sslMode`                       | SSL mode to use, see `SSLMode` enum. Supported values: `DISABLE`, `ALLOW`, `PREFER`, `REQUIRE`, `VERIFY_CA`, `VERIFY_FULL`. _(Optional)_                                                                                                                                                                                     
-| `sslNegotiation`                | SSL negotiation to use, see `SSLNegotiation` enum. Supported values: `POSTGRES`, `DIRECT`, `TUNNEL`. _(Optional)_                                                                                                                                                                                                            
-| `sslRootCert`                   | Path to SSL CA certificate in PEM format. Can be also a resource path. _(Optional)_                                                                                                                                                                                                                                          
-| `sslKey`                        | Path to SSL key for TLS authentication in PEM format. Can be also a resource path. _(Optional)_                                                                                                                                                                                                                              
-| `sslCert`                       | Path to SSL certificate for TLS authentication in PEM format. Can be also a resource path. _(Optional)_                                                                                                                                                                                                                      
-| `sslPassword`                   | Key password to decrypt SSL key. _(Optional)_                                                                                                                                                                                                                                                                                
-| `sslHostnameVerifier`           | `javax.net.ssl.HostnameVerifier` implementation. _(Optional)_                                                                                                                                                                                                                                                                
-| `sslSni`                        | Enable/disable SNI to send the configured `host` name during the SSL handshake.  Defaults to `true`. _(Optional)_                                                                                                                                                                                                            
-| `statementTimeout`              | Statement timeout. _(Optional)_                                                                                                                                                                                                                                                                                              
-| `targetServerType`              | Type of server to use when using multi-host operations. Supported values: `ANY`, `PRIMARY`, `SECONDARY`, `PREFER_SECONDARY`. Defaults to `ANY`. _(Optional)_                                                                                                                                                                 
-| `tcpNoDelay`                    | Enable/disable TCP NoDelay. Enabled by default. _(Optional)_                                                                                                                                                                                                                                                                 
-| `tcpKeepAlive`                  | Enable/disable TCP KeepAlive. Disabled by default. _(Optional)_                                                                                                                                                                                                                                                              
-| `timeZone`                      | Configure the session timezone to control conversion of local temporal representations. Defaults to `TimeZone.getDefault()` _(Optional)_                                                                                                                                                                                     
+| Option            | Description
+| ----------------- | -----------
+| `ssl`             | Enables SSL usage (`SSLMode.VERIFY_FULL`).
+| `driver`          | Must be `postgresql`.
+| `host`            | Server hostname to connect to.
+| `port`            | Server port to connect to.  Defaults to `5432`. _(Optional)_
+| `socket`          | Unix Domain Socket path to connect to as alternative to TCP. _(Optional)_
+| `username`        | Login username.
+| `password`        | Login password. _(Optional when using TLS Certificate authentication)_
+| `database`        | Database to select. _(Optional)_
+| `applicationName` | The name of the application connecting to the database.  Defaults to `r2dbc-postgresql`. _(Optional)_
+| `autodetectExtensions` | Whether to auto-detect and register `Extension`s from the class path.  Defaults to `true`. _(Optional)_
+| `compatibilityMode` | Enable compatibility mode for cursored fetching. Required when using newer pgpool versions. Defaults to `false`. _(Optional)_
+| `errorResponseLogLevel` | Log level for error responses. Any of `OFF`, `DEBUG`, `INFO`, `WARN` or `ERROR`  Defaults to `DEBUG`. _(Optional)_
+| `extensions`      | Collection of `Extension` to provide additional extensions when creating a connection factory. Defaults to empty. _(Optional)_
+| `fetchSize`       | The default number of rows to return when fetching results. Defaults to `0` for unlimited. _(Optional)_
+| `forceBinary`     | Whether to force binary transfer. Defaults to `false`. _(Optional)_
+| `loopResources`   | TCP/Socket LoopResources (depends on the endpoint connection type). _(Optional)_
+| `lockWaitTimeout` | Lock wait timeout. _(Optional)_
+| `noticeLogLevel`  | Log level for error responses. Any of `OFF`, `DEBUG`, `INFO`, `WARN` or `ERROR`  Defaults to `DEBUG`. _(Optional)_
+| `preferAttachedBuffers` |Configure whether codecs should prefer attached data buffers. The default is `false`, meaning that codecs will copy data from the input buffer into a byte array. Enabling attached buffers requires consumption of values such as `Json`  to avoid memory leaks.
+| `preparedStatementCacheQueries` | Determine the number of queries that are cached in each connection. The default is `-1`, meaning there's no limit. The value of `0` disables the cache. Any other value specifies the cache size.
+| `options`         | A `Map<String, String>` of connection parameters. These are applied to each database connection created by the `ConnectionFactory`. Useful for setting generic [PostgreSQL connection parameters][psql-runtime-config]. _(
+Optional)_
+| `schema`          | The search path to set. _(Optional)_
+| `sslMode`         | SSL mode to use, see `SSLMode` enum. Supported values: `DISABLE`, `ALLOW`, `PREFER`, `REQUIRE`, `VERIFY_CA`, `VERIFY_FULL`, `TUNNEL`. _(Optional)_
+| `sslRootCert`     | Path to SSL CA certificate in PEM format. Can be also a resource path. _(Optional)_
+| `sslKey`          | Path to SSL key for TLS authentication in PEM format. Can be also a resource path. _(Optional)_
+| `sslCert`         | Path to SSL certificate for TLS authentication in PEM format. Can be also a resource path. _(Optional)_
+| `sslPassword`     | Key password to decrypt SSL key. _(Optional)_
+| `sslHostnameVerifier` | `javax.net.ssl.HostnameVerifier` implementation. _(Optional)_
+| `statementTimeout`| Statement timeout. _(Optional)_
+| `tcpNoDelay`      | Enable/disable TCP NoDelay. Enabled by default. _(Optional)_
+| `tcpKeepAlive`    | Enable/disable TCP KeepAlive. Disabled by default. _(Optional)_
 
 **Programmatic Configuration**
 
@@ -151,7 +141,7 @@ Binding also allowed positional index (zero-based) references.  The parameter in
 
 ### Maven configuration
 
-Artifacts can be found on [Maven Central](https://central.sonatype.com/search?q=r2dbc-postgresql).
+Artifacts can be found on [Maven Central](https://search.maven.org/search?q=r2dbc-postgresql).
 
 ```xml
 <dependency>
@@ -171,27 +161,10 @@ If you'd rather like the latest snapshots of the upcoming major version, use our
 </dependency>
 
 <repository>
-  <id>central-portal-snapshots</id>
-  <name>Central Portal Snapshots</name>
-  <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+<id>sonatype-nexus-snapshots</id>
+<name>Sonatype OSS Snapshot Repository</name>
+<url>https://oss.sonatype.org/content/repositories/snapshots</url>
 </repository>
-```
-
-## Connection Fail-over
-
-To support simple connection fail-over it is possible to define multiple endpoints (host and port pairs) in the connection url separated by commas. The driver will try once to connect to each of them
-in order until the connection succeeds. If none succeeds a normal connection exception is thrown. Make sure to specify the `failover` protocol.
-
-The syntax for the connection url is:
-
-```
-r2dbc:postgresql:failover://user:foo@host1:5433,host2:5432,host3
-```
-
-For example an application can create two connection pools. One data source is for writes, another for reads. The write pool limits connections only to a primary node:
-
-```
-r2dbc:postgresql:failover://user:foo@host1:5433,host2:5432,host3?targetServerType=primary
 ```
 
 ## Cursors
@@ -210,15 +183,15 @@ Listen and Notify provide a simple form of signal or inter-process communication
 sender (notify) and the receiver (listen). The following example uses two connections to illustrate how they work together:
 
 ```java
-PostgresqlConnection sender = …;
-PostgresqlConnection receiver = …;
+PostgresqlConnection sender= …;
+        PostgresqlConnection receiver= …;
 
 Flux<Notification> listen = receiver.createStatement("LISTEN mymessage")
                                 .execute()
                                 .flatMap(PostgresqlResult::getRowsUpdated)
         .thenMany(receiver.getNotifications());
 
-        Mono<Void> notify = sender.createStatement("NOTIFY mymessage, 'Hello World'")
+        Mono<Void> notify=sender.createStatement("NOTIFY mymessage, 'Hello World'")
         .execute()
         .flatMap(PostgresqlResult::getRowsUpdated)
         .then();
@@ -389,7 +362,7 @@ ReplicationRequest replicationRequest = ReplicationRequest.logical()
                                         .build();
 
 Flux<T> replicationStream = replicationConnection.startReplication(replicationRequest).flatMapMany(it -> {
-    return it.map(byteBuf -> …)
+    return it.map(byteBuf -> {…})
         .doOnError(t -> it.close().subscribe());
 });
 ```
@@ -429,93 +402,89 @@ When available, the driver registers also an array variant of the codec.
 
 This reference table shows the type mapping between [PostgreSQL][p] and Java data types:
 
-| PostgreSQL Type                                  | Supported Data Type                                                                                                                                                                                                                                                                                      | 
-|:-------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [`bigint`][psql-bigint-ref]                      | [**`Long`**][java-long-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]                                                                                  |
-| [`bit`][psql-bit-ref]                            | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`bit varying`][psql-bit-ref]                    | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`boolean or bool`][psql-boolean-ref]            | [`Boolean`][java-boolean-ref]                                                                                                                                                                                                                                                                            |
-| [`box`][psql-box-ref]                            | **`Box`**                                                                                                                                                                                                                                                                                                |
-| [`bytea`][psql-bytea-ref]                        | [**`ByteBuffer`**][java-ByteBuffer-ref], [`byte[]`][java-byte-ref], [`Blob`][r2dbc-blob-ref]                                                                                                                                                                                                             |
-| [`character`][psql-character-ref]                | [`String`][java-string-ref]                                                                                                                                                                                                                                                                              |
-| [`character varying`][psql-character-ref]        | [`String`][java-string-ref], [`YearMonth`][java-yearmonth-ref],[`MonthDay`][java-monthday-ref], [`Period`][java-period-ref]                                                                                                                                                                              |
-| [`cidr`][psql-cidr-ref]                          | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`circle`][psql-circle-ref]                      | **`Circle`**                                                                                                                                                                                                                                                                                             |
-| [`date`][psql-date-ref]                          | [`LocalDate`][java-ld-ref]                                                                                                                                                                                                                                                                               |
-| [`double precision`][psql-floating-point-ref]    | [**`Double`**][java-double-ref], [`Float`][java-float-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]                          |
-| [enumerated types][psql-enum-ref]                | Client code `Enum` types through `EnumCodec`                                                                                                                                                                                                                                                             |
-| [`geometry`][postgis-ref]                        | **`org.locationtech.jts.geom.Geometry`**                                                                                                                                                                                                                                                                 |
-| [`hstore`][psql-hstore-ref]                      | [**`Map`**][java-map-ref]                                                                                                                                                                                                                                                                                |
-| [`inet`][psql-inet-ref]                          | [**`InetAddress`**][java-inet-ref]                                                                                                                                                                                                                                                                       |
-| [`integer`][psql-integer-ref]                    | [**`Integer`**][java-integer-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref], [`Year`][java-year-ref], [`Month`][java-month-ref], [`DayOfWeek`][java-dow-ref] |
-| [`interval`][psql-interval-ref]                  | **`Interval`**                                                                                                                                                                                                                                                                                           |
-| [`json`][psql-json-ref]                          | **`Json`**, [`String`][java-string-ref]. Reading: `ByteBuf`[`byte[]`][java-primitive-ref], [`ByteBuffer`][java-ByteBuffer-ref], [`String`][java-string-ref], [`InputStream`][java-inputstream-ref]                                                                                                       |
-| [`jsonb`][psql-json-ref]                         | **`Json`**, [`String`][java-string-ref]. Reading: `ByteBuf`[`byte[]`][java-primitive-ref], [`ByteBuffer`][java-ByteBuffer-ref], [`String`][java-string-ref], [`InputStream`][java-inputstream-ref]                                                                                                       |
-| [`line`][psql-line-ref]                          | **`Line`**                                                                                                                                                                                                                                                                                               |
-| [`lseg`][psql-lseq-ref]                          | **`Lseg`**                                                                                                                                                                                                                                                                                               |
-| [`macaddr`][psql-macaddr-ref]                    | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`macaddr8`][psql-macaddr8-ref]                  | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`money`][psql-money-ref]                        | Not yet supported. Please don't use this type. It is a very poor implementation.                                                                                                                                                                                                                         |
-| [`name`][psql-name-ref]                          | [**`String`**][java-string-ref]                                                                                                                                                                                                                                                                          
-| [`numeric`][psql-bignumeric-ref]                 | [`BigDecimal`][java-bigdecimal-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`Long`][java-long-ref], [`BigInteger`][java-biginteger-ref]                                                                                      |
-| [`oid`][psql-oid-ref]                            | [**`Integer`**][java-integer-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]                                                                                  |
-| [`path`][psql-path-ref]                          | **`Path`**                                                                                                                                                                                                                                                                                               |
-| [`pg_lsn`][psql-pg_lsn-ref]                      | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`point`][psql-point-ref]                        | **`Point`**                                                                                                                                                                                                                                                                                              |
-| [`polygon`][psql-polygon-ref]                    | **`Polygon`**                                                                                                                                                                                                                                                                                            |
-| [`real`][psql-real-ref]                          | [**`Float`**][java-float-ref], [`Double`][java-double-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]                          |
-| [`smallint`][psql-smallint-ref]                  | [**`Short`**][java-short-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Integer`][java-integer-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]                                                                                  |
-| [`smallserial`][psql-smallserial-ref]            | [**`Integer`**][java-integer-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]                                                                                  |
-| [`serial`][psql-serial-ref]                      | [**`Long`**][java-long-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]                                                                                  |
-| [`text`][psql-text-ref]                          | [**`String`**][java-string-ref], [`Clob`][r2dbc-clob-ref]                                                                                                                                                                                                                                                |
-| [`time [without time zone]`][psql-time-ref]      | [`LocalTime`][java-lt-ref]                                                                                                                                                                                                                                                                               |
-| [`time [with time zone]`][psql-time-ref]         | [`OffsetTime`][java-ot-ref]                                                                                                                                                                                                                                                                              |
-| [`timestamp [without time zone]`][psql-time-ref] | [**`LocalDateTime`**][java-ldt-ref], [`LocalTime`][java-lt-ref], [`LocalDate`][java-ld-ref], [`java.util.Date`][java-legacy-date-ref]                                                                                                                                                                    |
-| [`timestamp [with time zone]`][psql-time-ref]    | [**`OffsetDatetime`**][java-odt-ref], [`ZonedDateTime`][java-zdt-ref], [`Instant`][java-instant-ref]                                                                                                                                                                                                     |
-| [`tsquery`][psql-tsquery-ref]                    | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`tsvector`][psql-tsvector-ref]                  | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`txid_snapshot`][psql-txid_snapshot-ref]        | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`uuid`][psql-uuid-ref]                          | [**`UUID`**][java-uuid-ref], [`String`][java-string-ref]                                                                                                                                                                                                                                                 |
-| [`xml`][psql-xml-ref]                            | Not yet supported.                                                                                                                                                                                                                                                                                       |
-| [`vector`][psql-vector-ref]                      | **`Vector`**, [`float[]`][java-float-ref]                                                                                                                                                                                                                                                                | 
-
-**Note on `Integer` `oid` usage**: Postgres OIDs are unsigned 32 bit integers. Make sure to consider how Java represents unsigned integers when working with large OID values or convert the value to
-`long` through `Integer.toUnsignedLong(int)`.
+| PostgreSQL Type                                 | Supported Data Type                                                                                                                           |
+|:------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------|
+| [`bigint`][psql-bigint-ref]                     | [**`Long`**][java-long-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref] |
+| [`bit`][psql-bit-ref]                           | Not yet supported.|
+| [`bit varying`][psql-bit-ref]                   | Not yet supported.|
+| [`boolean or bool`][psql-boolean-ref]           | [`Boolean`][java-boolean-ref]|
+| [`box`][psql-box-ref]                           | **`Box`**|
+| [`bytea`][psql-bytea-ref]                       | [**`ByteBuffer`**][java-ByteBuffer-ref], [`byte[]`][java-byte-ref], [`Blob`][r2dbc-blob-ref]|
+| [`character`][psql-character-ref]               | [`String`][java-string-ref]|
+| [`character varying`][psql-character-ref]       | [`String`][java-string-ref]|
+| [`cidr`][psql-cidr-ref]                         | Not yet supported.|
+| [`circle`][psql-circle-ref]                     | **`Circle`**|
+| [`date`][psql-date-ref]                         | [`LocalDate`][java-ld-ref]|
+| [`double precision`][psql-floating-point-ref]   | [**`Double`**][java-double-ref], [`Float`][java-float-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]|
+| [enumerated types][psql-enum-ref]               | Client code `Enum` types through `EnumCodec`|
+| [`geometry`][postgis-ref]                       | **`org.locationtech.jts.geom.Geometry`**|
+| [`hstore`][psql-hstore-ref]                     | [**`Map`**][java-map-ref]|
+| [`inet`][psql-inet-ref]                         | [**`InetAddress`**][java-inet-ref]|
+| [`integer`][psql-integer-ref]                   | [**`Integer`**][java-integer-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]|
+| [`interval`][psql-interval-ref]                 | **`Interval`**|
+| [`json`][psql-json-ref]                         | **`Json`**, [`String`][java-string-ref]. Reading: `ByteBuf`[`byte[]`][java-primitive-ref], [`ByteBuffer`][java-ByteBuffer-ref], [`String`][java-string-ref], [`InputStream`][java-inputstream-ref]|
+| [`jsonb`][psql-json-ref]                        | **`Json`**, [`String`][java-string-ref]. Reading: `ByteBuf`[`byte[]`][java-primitive-ref], [`ByteBuffer`][java-ByteBuffer-ref], [`String`][java-string-ref], [`InputStream`][java-inputstream-ref]|
+| [`line`][psql-line-ref]                         | **`Line`**|
+| [`lseg`][psql-lseq-ref]                         | **`Lseg`**|
+| [`macaddr`][psql-macaddr-ref]                   | Not yet supported.|
+| [`macaddr8`][psql-macaddr8-ref]                 | Not yet supported.|
+| [`money`][psql-money-ref]                       | Not yet supported. Please don't use this type. It is a very poor implementation. |
+| [`name`][psql-name-ref]                         | [**`String`**][java-string-ref]
+| [`numeric`][psql-bignumeric-ref]                | [`BigDecimal`][java-bigdecimal-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`Long`][java-long-ref], [`BigInteger`][java-biginteger-ref]|
+| [`oid`][psql-oid-ref]                           | [**`Integer`**][java-integer-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]|
+| [`path`][psql-path-ref]                         | **`Path`**|
+| [`pg_lsn`][psql-pg_lsn-ref]                     | Not yet supported.|
+| [`point`][psql-point-ref]                       | **`Point`**|
+| [`polygon`][psql-polygon-ref]                   | **`Polygon`**|
+| [`real`][psql-real-ref]                         | [**`Float`**][java-float-ref], [`Double`][java-double-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]|
+| [`smallint`][psql-smallint-ref]                 | [**`Short`**][java-short-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Integer`][java-integer-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]|
+| [`smallserial`][psql-smallserial-ref]           | [**`Integer`**][java-integer-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Long`][java-long-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]|
+| [`serial`][psql-serial-ref]                     | [**`Long`**][java-long-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref]|
+| [`text`][psql-text-ref]                         | [**`String`**][java-string-ref], [`Clob`][r2dbc-clob-ref]|
+| [`time [without time zone]`][psql-time-ref]     | [`LocalTime`][java-lt-ref]|
+| [`time [with time zone]`][psql-time-ref]        | [`OffsetTime`][java-ot-ref]|
+| [`timestamp [without time zone]`][psql-time-ref]|[**`LocalDateTime`**][java-ldt-ref], [`LocalTime`][java-lt-ref], [`LocalDate`][java-ld-ref], [`java.util.Date`][java-legacy-date-ref]|
+| [`timestamp [with time zone]`][psql-time-ref]   | [**`OffsetDatetime`**][java-odt-ref], [`ZonedDateTime`][java-zdt-ref], [`Instant`][java-instant-ref]|
+| [`tsquery`][psql-tsquery-ref]                   | Not yet supported.|
+| [`tsvector`][psql-tsvector-ref]                 | Not yet supported.|
+| [`txid_snapshot`][psql-txid_snapshot-ref]       | Not yet supported.|
+| [`uuid`][psql-uuid-ref]                         | [**`UUID`**][java-uuid-ref], [`String`][java-string-ref]||
+| [`xml`][psql-xml-ref]                           | Not yet supported. |
 
 Types in **bold** indicate the native (default) Java type.
 
 Support for the following single-dimensional arrays (read and write):
 
-| PostgreSQL Type                                 | Supported Data Type                                                                                                                                                                                                                                                                               |
-|:------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [`bytea[]`][psql-bytea-ref]                     | [**`ByteBuffer[]`**][java-ByteBuffer-ref], [`byte[][]`][java-byte-ref]                                                                                                                                                                                                                            |
-| [`boolean[] or bool[]`][psql-boolean-ref]       | [`Boolean[]`][java-boolean-ref]                                                                                                                                                                                                                                                                   |
-| [`box[]`][psql-box-ref]                         | **`Box[]`**                                                                                                                                                                                                                                                                                       |
-| [`character`][psql-character-ref]               | [`String[]`][java-string-ref]                                                                                                                                                                                                                                                                     |
-| [`character varying`][psql-character-ref]       | [`String[]`][java-string-ref], [`YearMonth[]`][java-yearmonth-ref], [`Period[]`][java-period-ref], [`MonthDay[]`][java-monthday-ref]                                                                                                                                                              |
-| [`circle[]`][psql-circle-ref]                   | **`Circle[]`**                                                                                                                                                                                                                                                                                    |
-| [`date[]`][psql-date-ref]                       | [`LocalDate[]`][java-ld-ref]                                                                                                                                                                                                                                                                      |
-| [`double precision[]`][psql-floating-point-ref] | [**`Double[]`**][java-double-ref], [`Float[]`][java-float-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Integer[]`][java-integer-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref] |
-| [enumerated type arrays][psql-enum-ref]         | Client code `Enum[]` types through `EnumCodec`                                                                                                                                                                                                                                                    |
-| [`inet[]`][psql-inet-ref]                       | [**`InetAddress[]`**][java-inet-ref]                                                                                                                                                                                                                                                              |
-| [`integer`[]][psql-integer-ref]                 | [**`Integer[]`**][java-integer-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]                                                             |
-| [`interval[]`][psql-interval-ref]               | **`Interval[]`**                                                                                                                                                                                                                                                                                  |
-| [`line[]`][psql-line-ref]                       | **`Line[]`**                                                                                                                                                                                                                                                                                      |
-| [`lseg[]`][psql-lseq-ref]                       | **`Lseg[]`**                                                                                                                                                                                                                                                                                      |
-| [`numeric[]`][psql-bignumeric-ref]              | [`BigDecimal[]`][java-bigdecimal-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Integer[]`][java-integer-ref], [`Long[]`][java-long-ref], [`BigInteger[]`][java-biginteger-ref]                                                                 |
-| [`path[]`][psql-path-ref]                       | **`Path[]`**                                                                                                                                                                                                                                                                                      |
-| [`point[]`][psql-point-ref]                     | **`Point[]`**                                                                                                                                                                                                                                                                                     |
-| [`polygon[]`][psql-polygon-ref]                 | **`Polygon[]`**                                                                                                                                                                                                                                                                                   |
-| [`real[]`][psql-real-ref]                       | [**`Float[]`**][java-float-ref], [`Double[]`][java-double-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Integer[]`][java-integer-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref] |
-| [`smallint[]`][psql-smallint-ref]               | [**`Short[]`**][java-short-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Integer[]`][java-integer-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]                                                             |
-| [`smallserial[]`][psql-smallserial-ref]         | [**`Integer[]`**][java-integer-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]                                                             |
-| [`serial[]`][psql-serial-ref]                   | [**`Long[]`**][java-long-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Integer[]`][java-integer-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]                                                             |
-| [`text[]`][psql-text-ref]                       | [`String[]`][java-string-ref]                                                                                                                                                                                                                                                                     |
-| [`time[] [without time zone]`][psql-time-ref]   | [`LocalTime[]`][java-lt-ref]                                                                                                                                                                                                                                                                      |
-| [`time[] [with time zone]`][psql-time-ref]      | [`OffsetTime[]`][java-ot-ref]                                                                                                                                                                                                                                                                     |
-| [`timestamp[] [without time zone]`][psql-time-ref]| [**`LocalDateTime[]`**][java-ldt-ref], [`LocalTime[]`][java-lt-ref], [`LocalDate[]`][java-ld-ref], [`java.util.Date[]`][java-legacy-date-ref]                                                                                                                                                     |
-| [`timestamp[] [with time zone]`][psql-time-ref] | [**`OffsetDatetime[]`**][java-odt-ref], [`ZonedDateTime[]`][java-zdt-ref], [`Instant[]`][java-instant-ref]                                                                                                                                                                                        |
-| [`uuid[]`][psql-uuid-ref]                       | [**`UUID[]`**][java-uuid-ref], [`String[]`][java-string-ref]                                                                                                                                                                                                                                      ||
+| PostgreSQL Type                                 | Supported Data Type                   |
+|:------------------------------------------------|:--------------------------------------|
+| [`bytea[]`][psql-bytea-ref]                     | [**`ByteBuffer[]`**][java-ByteBuffer-ref], [`byte[][]`][java-byte-ref]|
+| [`boolean[] or bool[]`][psql-boolean-ref]       | [`Boolean[]`][java-boolean-ref]       |
+| [`box[]`][psql-box-ref]                         | **`Box[]`**|
+| [`character`][psql-character-ref]               | [`String[]`][java-string-ref]|
+| [`character varying`][psql-character-ref]       | [`String[]`][java-string-ref]|
+| [`circle[]`][psql-circle-ref]                   | **`Circle[]`**|
+| [`date[]`][psql-date-ref]                       | [`LocalDate[]`][java-ld-ref]|
+| [`double precision[]`][psql-floating-point-ref] | [**`Double[]`**][java-double-ref], [`Float[]`][java-float-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Integer[]`][java-integer-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]|
+| [enumerated type arrays][psql-enum-ref]         | Client code `Enum[]` types through `EnumCodec`|
+| [`inet[]`][psql-inet-ref]                       | [**`InetAddress[]`**][java-inet-ref]|
+| [`integer`[]][psql-integer-ref]                 | [**`Integer[]`**][java-integer-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]|
+| [`interval[]`][psql-interval-ref]               | **`Interval[]`**|
+| [`line[]`][psql-line-ref]                       | **`Line[]`**|
+| [`lseg[]`][psql-lseq-ref]                       | **`Lseg[]`**|
+| [`numeric[]`][psql-bignumeric-ref]              | [`BigDecimal[]`][java-bigdecimal-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Integer[]`][java-integer-ref], [`Long[]`][java-long-ref], [`BigInteger[]`][java-biginteger-ref]|
+| [`path[]`][psql-path-ref]                       | **`Path[]`**|
+| [`point[]`][psql-point-ref]                     | **`Point[]`**|
+| [`polygon[]`][psql-polygon-ref]                 | **`Polygon[]`**|
+| [`real[]`][psql-real-ref]                       | [**`Float[]`**][java-float-ref], [`Double[]`][java-double-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Integer[]`][java-integer-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]|
+| [`smallint[]`][psql-smallint-ref]               | [**`Short[]`**][java-short-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Integer[]`][java-integer-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]|
+| [`smallserial[]`][psql-smallserial-ref]         | [**`Integer[]`**][java-integer-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Long[]`][java-long-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]|
+| [`serial[]`][psql-serial-ref]                   | [**`Long[]`**][java-long-ref], [`Boolean[]`][java-boolean-ref], [`Byte[]`][java-byte-ref], [`Short[]`][java-short-ref], [`Integer[]`][java-integer-ref], [`BigDecimal[]`][java-bigdecimal-ref], [`BigInteger[]`][java-biginteger-ref]|
+| [`text[]`][psql-text-ref]                       | [`String[]`][java-string-ref]         |
+| [`time[] [without time zone]`][psql-time-ref]   | [`LocalTime[]`][java-lt-ref]|
+| [`time[] [with time zone]`][psql-time-ref]      | [`OffsetTime[]`][java-ot-ref]|
+| [`timestamp[] [without time zone]`][psql-time-ref]|[**`LocalDateTime[]`**][java-ldt-ref], [`LocalTime[]`][java-lt-ref], [`LocalDate[]`][java-ld-ref], [`java.util.Date[]`][java-legacy-date-ref]|
+| [`timestamp[] [with time zone]`][psql-time-ref] | [**`OffsetDatetime[]`**][java-odt-ref], [`ZonedDateTime[]`][java-zdt-ref], [`Instant[]`][java-instant-ref]|
+| [`uuid[]`][psql-uuid-ref]                       | [**`UUID[]`**][java-uuid-ref], [`String[]`][java-string-ref]||
 
 [psql-bigint-ref]: https://www.postgresql.org/docs/current/datatype-numeric.html#DATATYPE-INT
 [psql-bit-ref]: https://www.postgresql.org/docs/current/datatype-numeric.html
@@ -558,7 +527,6 @@ Support for the following single-dimensional arrays (read and write):
 [psql-xml-ref]: https://www.postgresql.org/docs/current/datatype-xml.html
 [psql-runtime-config]: https://www.postgresql.org/docs/current/runtime-config-client.html
 [postgis-ref]: http://postgis.net/workshops/postgis-intro/geometries.html
-[psql-vector-ref]: https://github.com/pgvector/pgvector
 
 [r2dbc-blob-ref]: https://r2dbc.io/spec/0.9.0.RELEASE/api/io/r2dbc/spi/Blob.html
 [r2dbc-clob-ref]: https://r2dbc.io/spec/0.9.0.RELEASE/api/io/r2dbc/spi/Clob.html
@@ -569,8 +537,6 @@ Support for the following single-dimensional arrays (read and write):
 [java-byte-ref]: https://docs.oracle.com/javase/8/docs/api/java/lang/Byte.html
 [java-ByteBuffer-ref]: https://docs.oracle.com/javase/8/docs/api/java/nio/ByteBuffer.html
 [java-double-ref]: https://docs.oracle.com/javase/8/docs/api/java/lang/Double.html
-[java-dow-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/DayOfWeek.html
-[java-duration-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/Duration.html
 [java-float-ref]: https://docs.oracle.com/javase/8/docs/api/java/lang/Float.html
 [java-map-ref]: https://docs.oracle.com/javase/8/docs/api/java/util/Map.html
 [java-inet-ref]: https://docs.oracle.com/javase/8/docs/api/java/net/InetAddress.html
@@ -582,17 +548,12 @@ Support for the following single-dimensional arrays (read and write):
 [java-ld-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/LocalDate.html
 [java-lt-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/LocalTime.html
 [java-legacy-date-ref]: https://docs.oracle.com/javase/8/docs/api/java/util/Date.html
-[java-month-ref]: https://docs.oracle.com/javase/8/docs/api/java/util/Month.html
-[java-monthday-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/MonthDay.html
 [java-odt-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/OffsetDateTime.html
 [java-ot-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/OffsetTime.html
-[java-period-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/Period.html
 [java-primitive-ref]: https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html
 [java-short-ref]: https://docs.oracle.com/javase/8/docs/api/java/lang/Short.html
 [java-string-ref]: https://docs.oracle.com/javase/8/docs/api/java/lang/String.html
 [java-uuid-ref]: https://docs.oracle.com/javase/8/docs/api/java/util/UUID.html
-[java-year-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/Year.html
-[java-yearmonth-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/YearMonth.html
 [java-zdt-ref]: https://docs.oracle.com/javase/8/docs/api/java/time/ZonedDateTime.html
 
 ## Extension mechanism
@@ -611,9 +572,6 @@ Logging facilities:
 
 * Driver Logging (`io.r2dbc.postgresql`)
 * Query Logging (`io.r2dbc.postgresql.QUERY` on `DEBUG` level)
-* Connection Context (`io.r2dbc.postgresql.client.ConnectionContext`)
-    * `DEBUG` level enables connection and process identifiers in log messages and exceptions (`[cid: 0x1][pid: 109]`)
-    * `TRACE` level enables socket information (remote and local addresses) to the connection context (`[cid: 0x1][pid: 109][id: 0x79dfc4d4, L:/127.0.0.1:49391 - R:localhost/127.0.0.1:49366]`)
 * Parameters' values Logging (`io.r2dbc.postgresql.PARAM` on `DEBUG` level)
 * Transport Logging (`io.r2dbc.postgresql.client`)
     * `DEBUG` enables `Message` exchange logging
@@ -653,7 +611,7 @@ You don't need to build from source to use R2DBC PostgreSQL (binaries in Maven C
  $ ./mvnw clean install
 ```
 
-If you want to build with the regular `mvn` command, you will need [Maven v3.9.0 or above](https://maven.apache.org/run-maven/index.html).
+If you want to build with the regular `mvn` command, you will need [Maven v3.5.0 or above](https://maven.apache.org/run-maven/index.html).
 
 _Also see [CONTRIBUTING.adoc](.github/CONTRIBUTING.adoc) if you wish to submit pull requests._
 

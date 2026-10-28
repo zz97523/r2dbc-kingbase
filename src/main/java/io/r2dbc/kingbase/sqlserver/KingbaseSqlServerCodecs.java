@@ -17,17 +17,19 @@
 package io.r2dbc.kingbase.sqlserver;
 
 import io.netty.buffer.ByteBufAllocator;
+import io.r2dbc.kingbase.KingbaseMoney;
+import io.r2dbc.kingbase.KingbaseTypedArrayCodec;
+import io.r2dbc.kingbase.KingbaseXml;
 import io.r2dbc.postgresql.codec.Codec;
-import io.r2dbc.postgresql.codec.KingbaseTypedArrayCodec;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -57,16 +59,22 @@ final class KingbaseSqlServerCodecs {
         codecs.addAll(KingbaseSqlServerNumericCodecs.create(allocator, typeOids));
         KingbaseSqlServerTextBinaryCodecs.MoneyCodec money =
             new KingbaseSqlServerTextBinaryCodecs.MoneyCodec(allocator, typeOids);
+        KingbaseSqlServerTextBinaryCodecs.MoneyValueCodec moneyValue =
+            new KingbaseSqlServerTextBinaryCodecs.MoneyValueCodec(allocator, typeOids);
         KingbaseSqlServerTextBinaryCodecs.MoneyBigDecimalCodec moneyDecimal =
             new KingbaseSqlServerTextBinaryCodecs.MoneyBigDecimalCodec(allocator, typeOids);
         KingbaseSqlServerTextBinaryCodecs.XmlCodec xml =
             new KingbaseSqlServerTextBinaryCodecs.XmlCodec(allocator, typeOids);
+        KingbaseSqlServerTextBinaryCodecs.XmlValueCodec xmlValue =
+            new KingbaseSqlServerTextBinaryCodecs.XmlValueCodec(allocator, typeOids);
+        codecs.add(moneyValue);
         codecs.add(moneyDecimal);
         codecs.add(money);
         codecs.add(new KingbaseSqlServerBooleanCodec(allocator, typeOids));
         codecs.add(new KingbaseSqlServerTextBinaryCodecs.UuidCodec(allocator, typeOids));
         codecs.add(new KingbaseSqlServerTextBinaryCodecs.BitSetCodec(allocator, typeOids));
         codecs.addAll(KingbaseSqlServerTemporalCodecs.create(allocator, typeOids));
+        codecs.add(xmlValue);
         codecs.add(xml);
         codecs.add(new KingbaseSqlServerTextBinaryCodecs.StringCodec(allocator, typeOids));
         codecs.add(new KingbaseSqlServerTextBinaryCodecs.EnumCodec(allocator, typeOids));
@@ -74,10 +82,14 @@ final class KingbaseSqlServerCodecs {
         codecs.add(new KingbaseSqlServerTextBinaryCodecs.ByteArrayCodec(allocator, typeOids));
         codecs.add(new KingbaseSqlServerTextBinaryCodecs.ByteBufferCodec(allocator, typeOids));
 
-        addArray(codecs, allocator, typeOids, "money", moneyDecimal, BigDecimal.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toPlainString()), true);
+        addArray(codecs, allocator, typeOids, "money", moneyDecimal, java.math.BigDecimal.class,
+            value -> io.r2dbc.postgresql.codec.ArrayCodec.escapeArrayElement(value.toString()), false);
         addArray(codecs, allocator, typeOids, "xml", xml, String.class,
-            KingbaseTypedArrayCodec::escapeArrayElement, true);
+            io.r2dbc.postgresql.codec.ArrayCodec::escapeArrayElement, false);
+        addArray(codecs, allocator, typeOids, "money", moneyValue, KingbaseMoney.class,
+            value -> value.asBigDecimal().toPlainString(), true);
+        addArray(codecs, allocator, typeOids, "xml", xmlValue, KingbaseXml.class,
+            value -> io.r2dbc.postgresql.codec.ArrayCodec.escapeArrayElement(value.getValue()), true);
 
         KingbaseSqlServerNumericCodecs.ShortCodec smallint =
             new KingbaseSqlServerNumericCodecs.ShortCodec(allocator, typeOids);
@@ -107,56 +119,46 @@ final class KingbaseSqlServerCodecs {
         KingbaseSqlServerTextBinaryCodecs.UuidCodec uuid =
             new KingbaseSqlServerTextBinaryCodecs.UuidCodec(allocator, typeOids);
 
-        addArrays(codecs, allocator, typeOids, smallint, Short.class, Object::toString, true,
+        addArrays(codecs, allocator, typeOids, smallint, Short.class, value -> value.toString(), true,
             "tinyint", "smallint");
-        addArrays(codecs, allocator, typeOids, integer, Integer.class, Object::toString, true,
+        addArrays(codecs, allocator, typeOids, integer, Integer.class, value -> value.toString(), true,
             "int", "integer");
-        addArrays(codecs, allocator, typeOids, bigint, Long.class, Object::toString, true, "bigint");
-        addArrays(codecs, allocator, typeOids, real, Float.class, Object::toString, true, "real");
-        addArrays(codecs, allocator, typeOids, doubleValue, Double.class, Object::toString, true,
+        addArrays(codecs, allocator, typeOids, bigint, Long.class, value -> value.toString(), true, "bigint");
+        addArrays(codecs, allocator, typeOids, real, Float.class, value -> value.toString(), true, "real");
+        addArrays(codecs, allocator, typeOids, doubleValue, Double.class, value -> value.toString(), true,
             "float", "double");
-        addArrays(codecs, allocator, typeOids, decimal, BigDecimal.class, BigDecimal::toPlainString, true,
+        addArrays(codecs, allocator, typeOids, decimal, BigDecimal.class, value -> value.toPlainString(), true,
             "decimal", "numeric", "smallmoney");
         addArrays(codecs, allocator, typeOids, date, LocalDate.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toString()), true, "date");
+            value -> io.r2dbc.postgresql.codec.ArrayCodec.escapeArrayElement(value.toString()), true, "date");
         addArrays(codecs, allocator, typeOids, time, LocalTime.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toString()), true, "time");
+            value -> io.r2dbc.postgresql.codec.ArrayCodec.escapeArrayElement(value.toString()), true, "time");
         addArrays(codecs, allocator, typeOids, dateTime, LocalDateTime.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toString()), true,
+            value -> io.r2dbc.postgresql.codec.ArrayCodec.escapeArrayElement(value.toString()), true,
             "datetime", "datetime2", "smalldatetime");
         addArrays(codecs, allocator, typeOids, offsetDateTime, OffsetDateTime.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toString()), true,
+            value -> io.r2dbc.postgresql.codec.ArrayCodec.escapeArrayElement(value.toString()), true,
             "datetimeoffset");
         addArrays(codecs, allocator, typeOids, bool, Boolean.class, value -> value ? "1" : "0", true,
             "bit", "bool", "boolean");
         addArrays(codecs, allocator, typeOids, string, String.class,
-            KingbaseTypedArrayCodec::escapeArrayElement, true,
-            "varchar", "nvarchar", "nchar", "text", "ntext", "bpchar", "clob", "nclob");
+            io.r2dbc.postgresql.codec.ArrayCodec::escapeArrayElement, true,
+            "nvarchar", "nchar", "varcharbyte", "bpcharbyte", "varchar", "text", "ntext", "bpchar",
+            "clob", "nclob");
         addArrays(codecs, allocator, typeOids, binary, byte[].class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement("\\x"
-                + io.netty.buffer.ByteBufUtil.hexDump(value)), true,
-            "varbinary", "binary", "image", "bytea");
+            value -> io.r2dbc.postgresql.codec.ArrayCodec.escapeArrayElement("\\x"
+                + io.netty.buffer.ByteBufUtil.hexDump(value)), true, "varbinary", "binary", "image", "bytea");
         addArrays(codecs, allocator, typeOids, uuid, UUID.class,
-            value -> KingbaseTypedArrayCodec.escapeArrayElement(value.toString()), true,
+            value -> io.r2dbc.postgresql.codec.ArrayCodec.escapeArrayElement(value.toString()), true,
             "uniqueidentifier", "uuid");
 
         return Collections.unmodifiableList(codecs);
     }
 
-    private static <T> void addArrays(List<Codec<?>> codecs, ByteBufAllocator allocator,
-                                      KingbaseSqlServerTypeOids typeOids, Codec<T> scalarCodec,
-                                      Class<T> componentType, Function<T, String> encoder,
-                                      boolean canEncode, String... typeNames) {
-        for (String typeName : typeNames) {
-            addArray(codecs, allocator, typeOids, typeName, scalarCodec, componentType, encoder,
-                canEncode && typeName.equals(typeNames[0]));
-        }
-    }
-
     private static <T> void addArray(List<Codec<?>> codecs, ByteBufAllocator allocator,
                                      KingbaseSqlServerTypeOids typeOids, String typeName,
                                      Codec<T> scalarCodec, Class<T> componentType,
-                                     Function<T, String> encoder, boolean canEncode) {
+                                     java.util.function.Function<T, String> encoder, boolean canEncode) {
         int scalarOid = typeOids.oid(typeName);
         if (scalarOid == 0 && typeName.equals("money")) {
             scalarOid = typeOids.encodeMoney();
@@ -168,6 +170,16 @@ final class KingbaseSqlServerCodecs {
         if (scalarOid > 0 && arrayOid > 0) {
             codecs.add(new KingbaseTypedArrayCodec<>(allocator, scalarOid, arrayOid, scalarCodec,
                 componentType, encoder, canEncode));
+        }
+    }
+
+    private static <T> void addArrays(List<Codec<?>> codecs, ByteBufAllocator allocator,
+                                      KingbaseSqlServerTypeOids typeOids, Codec<T> scalarCodec,
+                                      Class<T> componentType, Function<T, String> encoder,
+                                      boolean canEncode, String... typeNames) {
+        for (String typeName : typeNames) {
+            addArray(codecs, allocator, typeOids, typeName, scalarCodec, componentType, encoder,
+                canEncode && typeName.equals(typeNames[0]));
         }
     }
 

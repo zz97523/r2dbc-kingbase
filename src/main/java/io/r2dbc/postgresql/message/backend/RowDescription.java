@@ -80,7 +80,7 @@ public final class RowDescription implements BackendMessage {
     static RowDescription decode(ByteBuf in) {
         Assert.requireNonNull(in, "in must not be null");
 
-        int fieldCount = in.readUnsignedShort();
+        int fieldCount = in.readShort();
 
         List<Field> fields;
 

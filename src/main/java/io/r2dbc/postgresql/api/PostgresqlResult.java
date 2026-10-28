@@ -23,7 +23,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.function.BiFunction;
-import java.util.function.Predicate;
 
 /**
  * A {@link Result} representing the results of a query against a PostgreSQL database.
@@ -34,18 +33,12 @@ public interface PostgresqlResult extends Result {
      * {@inheritDoc}
      */
     @Override
-    Mono<Long> getRowsUpdated();
+    Mono<Integer> getRowsUpdated();
 
     /**
      * {@inheritDoc}
      */
     @Override
     <T> Flux<T> map(BiFunction<Row, RowMetadata, ? extends T> mappingFunction);
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    PostgresqlResult filter(Predicate<Segment> predicate);
 
 }

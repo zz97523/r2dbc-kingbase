@@ -26,7 +26,7 @@ import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
 import io.r2dbc.postgresql.util.ByteBufUtils;
-import org.jspecify.annotations.Nullable;
+import javax.annotation.Nullable;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -66,7 +66,7 @@ final class KingbaseOracleBooleanCodec implements Codec<Boolean>, CodecMetadata 
     }
 
     @Override
-    public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+    public Iterable<PostgresTypeIdentifier> getDataTypes() {
         return Collections.singleton(BIT);
     }
 

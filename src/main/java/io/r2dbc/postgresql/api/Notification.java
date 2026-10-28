@@ -16,7 +16,7 @@
 
 package io.r2dbc.postgresql.api;
 
-import org.jspecify.annotations.Nullable;
+import reactor.util.annotation.Nullable;
 
 /**
  * Postgres notification received via {@code LISTEN}.

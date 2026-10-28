@@ -34,6 +34,9 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIMETZ;
 import static io.r2dbc.kingbase.sqlserver.KingbaseSqlServerCodecSupport.AbstractSqlServerCodec;
@@ -52,6 +55,10 @@ import static io.r2dbc.kingbase.sqlserver.KingbaseSqlServerTypeOids.equalsPg;
  * ({@code pg_type}), not from the SQL Server client protocol.
  */
 final class KingbaseSqlServerTemporalCodecs {
+
+    private static final Pattern DURATION_TEXT = Pattern.compile(
+        "^([+-])?(?:(\\d+)\\s+days?\\s+)?(\\d+):([0-5]\\d):([0-5]\\d)(?:\\.(\\d{1,9}))?$",
+        Pattern.CASE_INSENSITIVE);
 
     private KingbaseSqlServerTemporalCodecs() {
     }
@@ -347,21 +354,7 @@ final class KingbaseSqlServerTemporalCodecs {
 
         @Override
         Duration doDecode(ByteBuf buffer, int dataType, Format format, Class<? extends Duration> type) {
-            String text = ByteBufUtils.decode(buffer).trim();
-            if (text.startsWith("P") || text.contains("day") || text.contains(":")) {
-                if (text.contains(":") && !text.startsWith("P")) {
-                    LocalTime time = LocalTime.parse(text.length() > 8 && text.charAt(2) != ':'
-                        ? text.substring(text.length() - 8) : text);
-                    return Duration.ofNanos(time.toNanoOfDay());
-                }
-                try {
-                    return Duration.parse(text);
-                } catch (Exception ignored) {
-                    // fall through
-                }
-            }
-            LocalTime time = LocalTime.parse(text);
-            return Duration.ofNanos(time.toNanoOfDay());
+            return parseDuration(ByteBufUtils.decode(buffer).trim());
         }
 
         @Override
@@ -371,14 +364,50 @@ final class KingbaseSqlServerTemporalCodecs {
 
         @Override
         public EncodedParameter encode(Object value, int dataType) {
-            Duration duration = (Duration) value;
-            long seconds = duration.getSeconds();
-            long abs = Math.abs(seconds);
-            String sign = seconds < 0 ? "-" : "";
-            String text = String.format("%s%d:%02d:%02d", sign, abs / 3600, (abs % 3600) / 60, abs % 60);
             int oid = resolveBindOid(dataType, this.typeOids.encodeTime());
-            return encodeText(this.allocator, oid, text);
+            return encodeText(this.allocator, oid, formatDuration((Duration) value));
         }
+    }
+
+    private static Duration parseDuration(String text) {
+        try {
+            return Duration.parse(text);
+        } catch (RuntimeException ignored) {
+            // SQL Server TIME and PostgreSQL interval text are handled below.
+        }
+        Matcher matcher = DURATION_TEXT.matcher(text);
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("Cannot decode Duration from '" + text + "'");
+        }
+        long days = matcher.group(2) == null ? 0 : Long.parseLong(matcher.group(2));
+        long hours = Long.parseLong(matcher.group(3));
+        long minutes = Long.parseLong(matcher.group(4));
+        long seconds = Long.parseLong(matcher.group(5));
+        long totalSeconds = Math.addExact(Math.multiplyExact(days, 86_400L),
+            Math.addExact(Math.multiplyExact(hours, 3_600L),
+                Math.addExact(Math.multiplyExact(minutes, 60L), seconds)));
+        String fraction = matcher.group(6);
+        int nanos = fraction == null ? 0
+            : Integer.parseInt((fraction + "000000000").substring(0, 9));
+        Duration duration = Duration.ofSeconds(totalSeconds, nanos);
+        return "-".equals(matcher.group(1)) ? duration.negated() : duration;
+    }
+
+    private static String formatDuration(Duration duration) {
+        boolean negative = duration.isNegative();
+        Duration absolute = duration.abs();
+        long seconds = absolute.getSeconds();
+        String text = String.format(Locale.ROOT, "%s%d:%02d:%02d",
+            negative ? "-" : "", seconds / 3_600, (seconds % 3_600) / 60, seconds % 60);
+        if (absolute.getNano() == 0) {
+            return text;
+        }
+        String fraction = String.format(Locale.ROOT, "%09d", absolute.getNano());
+        int end = fraction.length();
+        while (end > 0 && fraction.charAt(end - 1) == '0') {
+            end--;
+        }
+        return text + "." + fraction.substring(0, end);
     }
 
 }

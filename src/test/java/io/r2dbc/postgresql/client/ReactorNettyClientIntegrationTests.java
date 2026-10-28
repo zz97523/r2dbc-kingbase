@@ -22,7 +22,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.r2dbc.postgresql.PostgresqlConnectionConfiguration;
 import io.r2dbc.postgresql.PostgresqlConnectionFactory;
 import io.r2dbc.postgresql.api.PostgresqlConnection;
-import io.r2dbc.postgresql.authentication.AuthenticationHandler;
+import io.r2dbc.postgresql.authentication.PasswordAuthenticationHandler;
 import io.r2dbc.postgresql.message.backend.BackendMessage;
 import io.r2dbc.postgresql.message.backend.CommandComplete;
 import io.r2dbc.postgresql.message.backend.DataRow;
@@ -57,6 +57,7 @@ import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -86,8 +87,8 @@ final class ReactorNettyClientIntegrationTests {
 
     private final ReactorNettyClient client = ReactorNettyClient.connect(SERVER.getHost(), SERVER.getPort())
         .delayUntil(client -> StartupMessageFlow
-            .exchange(this.getClass().getName(), m -> AuthenticationHandler.getAuthenticationHandler(m, SERVER.getUsernameAndPassword(), client.getContext()), client, SERVER.getDatabase(),
-                SERVER.getUsername()))
+            .exchange(this.getClass().getName(), m -> new PasswordAuthenticationHandler(SERVER.getPassword(), SERVER.getUsername()), client, SERVER.getDatabase(), SERVER.getUsername(),
+                Collections.emptyMap()))
         .block();
 
     @BeforeEach
@@ -201,7 +202,7 @@ final class ReactorNettyClientIntegrationTests {
             .as(StepVerifier::create)
             .assertNext(message -> assertThat(message).isInstanceOf(RowDescription.class))
             .assertNext(message -> assertThat(message).isInstanceOf(DataRow.class))
-            .expectNext(new CommandComplete("SELECT", null, 1L))
+            .expectNext(new CommandComplete("SELECT", null, 1))
             .verifyComplete();
     }
 
@@ -287,21 +288,21 @@ final class ReactorNettyClientIntegrationTests {
             .assertNext(message -> assertThat(message).isInstanceOf(RowDescription.class))
             .assertNext(message -> assertThat(message).isInstanceOf(DataRow.class))
             .assertNext(message -> assertThat(message).isInstanceOf(DataRow.class))
-            .expectNext(new CommandComplete("SELECT", null, 1L))
-            .expectNext(new CommandComplete("SELECT", null, 1L))
+            .expectNext(new CommandComplete("SELECT", null, 1))
+            .expectNext(new CommandComplete("SELECT", null, 1))
             .verifyComplete();
     }
 
     @Test
     void timeoutTest() {
         PostgresqlConnectionFactory postgresqlConnectionFactory = new PostgresqlConnectionFactory(PostgresqlConnectionConfiguration.builder()
-            .host("1.2.3.4")
+            .host("example.com")
             .port(81)
             .username("test")
             .password("test")
             .database(SERVER.getDatabase())
             .applicationName(ReactorNettyClientIntegrationTests.class.getName())
-            .connectTimeout(Duration.ofMillis(1))
+            .connectTimeout(Duration.ofMillis(200))
             .build());
 
         postgresqlConnectionFactory.create()
@@ -453,21 +454,6 @@ final class ReactorNettyClientIntegrationTests {
         }
 
         @Test
-        void exchangeSslWitScram() {
-            client(
-                c -> c
-                    .sslRootCert(SERVER.getServerCrt())
-                    .username("test-ssl-scram")
-                    .password("test-ssl-scram"),
-                c -> c.map(client -> client.createStatement("SELECT 10")
-                    .execute()
-                    .flatMap(r -> r.map((row, meta) -> row.get(0, Integer.class)))
-                    .as(StepVerifier::create)
-                    .expectNext(10)
-                    .verifyComplete()));
-        }
-
-        @Test
         void exchangeSslWithPassword() {
             client(
                 c -> c
@@ -523,7 +509,7 @@ final class ReactorNettyClientIntegrationTests {
                 .host(SERVER.getHost())
                 .port(SERVER.getPort())
                 .username("test-ssl-with-cert")
-                .password((String) null)
+                .password(null)
                 .sslMode(SSLMode.VERIFY_FULL)
                 .sslHostnameVerifier(new NoVerification());
             new PostgresqlConnectionFactory(configurer.apply(defaultConfig).build()).create()
@@ -798,21 +784,6 @@ final class ReactorNettyClientIntegrationTests {
                     c -> c
                         .as(StepVerifier::create)
                         .verifyError(R2dbcPermissionDeniedException.class));
-            }
-
-            @Test
-            void directVerifyFull() {
-                client(
-                    c -> c
-                        .sslMode(SSLMode.VERIFY_FULL)
-                        .sslNegotiation(SSLNegotiation.DIRECT)
-                        .sslRootCert(SERVER.getServerCrt())
-                        .sslKey(SERVER.getClientKey())
-                        .sslCert(SERVER.getClientCrt()),
-                    c -> c
-                        .as(StepVerifier::create)
-                        .expectNextCount(1)
-                        .verifyComplete());
             }
 
         }

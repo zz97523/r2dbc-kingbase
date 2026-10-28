@@ -61,10 +61,10 @@ final class PostgresqlResult extends AbstractReferenceCounted implements io.r2db
 
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public Mono<Long> getRowsUpdated() {
+    public Mono<Integer> getRowsUpdated() {
 
         return this.messages
-            .<Long>handle((message, sink) -> {
+            .<Integer>handle((message, sink) -> {
 
                 if (message instanceof ErrorResponse) {
                     this.factory.handleErrorResponse(message, (SynchronousSink) sink);
@@ -77,27 +77,21 @@ final class PostgresqlResult extends AbstractReferenceCounted implements io.r2db
 
                 if (message instanceof CommandComplete) {
 
-                    Long rowCount = ((CommandComplete) message).getRows();
+                    Integer rowCount = ((CommandComplete) message).getRows();
                     if (rowCount != null) {
                         sink.next(rowCount);
                     }
                 }
-
             }).collectList().handle((list, sink) -> {
 
                 if (list.isEmpty()) {
                     return;
                 }
 
-                long sum = 0;
+                int sum = 0;
 
-                for (Long value : list) {
-                    try {
-                        sum = Math.addExact(sum, value);
-                    } catch (ArithmeticException e) {
-                        sum = Long.MAX_VALUE;
-                        break;
-                    }
+                for (Integer integer : list) {
+                    sum += integer;
                 }
 
                 sink.next(sum);
@@ -109,7 +103,7 @@ final class PostgresqlResult extends AbstractReferenceCounted implements io.r2db
     public <T> Flux<T> map(BiFunction<Row, RowMetadata, ? extends T> f) {
         Assert.requireNonNull(f, "f must not be null");
 
-        return (Flux<T>) this.messages
+        return this.messages
             .handle((message, sink) -> {
 
                 try {
