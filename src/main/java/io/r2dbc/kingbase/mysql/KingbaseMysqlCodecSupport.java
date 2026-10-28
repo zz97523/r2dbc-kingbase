@@ -165,7 +165,7 @@ final class KingbaseMysqlCodecSupport {
 
         @Override
         public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-            return Collections.singleton(this.mysqlType.getOid());
+            return Collections.singleton((PostgresTypeIdentifier) () -> this.typeOids.encodeOid(this.mysqlType));
         }
 
         @Override
@@ -187,12 +187,12 @@ final class KingbaseMysqlCodecSupport {
 
         @Override
         public EncodedParameter encode(Object value) {
-            return encode(value, this.mysqlType.getObjectId());
+            return encode(value, this.typeOids.encodeOid(this.mysqlType));
         }
 
         @Override
         public EncodedParameter encodeNull() {
-            return nullParameter(this.mysqlType.getObjectId());
+            return nullParameter(this.typeOids.encodeOid(this.mysqlType));
         }
 
         @Override

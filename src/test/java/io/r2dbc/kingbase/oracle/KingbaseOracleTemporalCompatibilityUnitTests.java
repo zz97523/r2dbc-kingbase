@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -44,6 +46,19 @@ final class KingbaseOracleTemporalCompatibilityUnitTests {
     void parsesWholeHourOffsetForOracleTime() {
         assertThat(KingbaseOracleTemporalCodecs.parseOffsetTime("11:04:05+08"))
             .isEqualTo(OffsetTime.parse("11:04:05+08:00"));
+    }
+
+    @Test
+    void keepsOracleTemporalBindTypesIndependent() {
+        Map<String, Integer> types = new LinkedHashMap<>();
+        types.put("date", 9_701);
+        types.put("timestamp", 9_702);
+        types.put("timestampltz", 9_703);
+        KingbaseOracleTypeOids typeOids = KingbaseOracleTypeOids.withNamedTypes(types);
+
+        assertThat(typeOids.encodeOid(KingbaseOracleType.DATE)).isEqualTo(9_701);
+        assertThat(typeOids.encodeOid(KingbaseOracleType.TIMESTAMP)).isEqualTo(9_702);
+        assertThat(typeOids.encodeOid(KingbaseOracleType.TIMESTAMP_LTZ)).isEqualTo(9_703);
     }
 
 }

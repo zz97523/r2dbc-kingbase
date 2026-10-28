@@ -189,6 +189,7 @@ final class KingbaseOracleTypeOids {
     static Mono<KingbaseOracleTypeOids> load(PostgresqlConnection connection) {
         KingbaseOracleTypeOids oids = postgresqlDefaults();
         return PostgresTypes.from(connection).lookupTypes(LOOKUP_TYPENAMES)
+            .distinct(type -> type.getName().toLowerCase(Locale.ROOT))
             .doOnNext(type -> oids.accept(type.getName(), type.getObjectId(), type.getArrayObjectId()))
             .then(loadCompositeTypes(connection, oids))
             .thenReturn(oids)
@@ -335,15 +336,12 @@ final class KingbaseOracleTypeOids {
                 this.timestampOids.add(oid);
                 this.dateOids.add(oid);
                 this.encodeTimestamp = oid;
-                this.encodeDate = oid;
                 break;
             case "timestampltz":
                 this.timestampOids.add(oid);
                 this.timestampltzOids.add(oid);
                 this.dateOids.add(oid);
                 this.encodeTimestampltz = oid;
-                this.encodeTimestamp = oid;
-                this.encodeDate = oid;
                 break;
             case "timestamptz":
                 this.timestampOids.add(oid);
@@ -588,6 +586,48 @@ final class KingbaseOracleTypeOids {
 
     int encodeJson() {
         return this.encodeJson;
+    }
+
+    int encodeOid(KingbaseOracleType type) {
+        switch (type) {
+            case NUMBER:
+                return this.encodeNumber;
+            case BINARY_FLOAT:
+                return this.encodeFloat;
+            case BINARY_DOUBLE:
+                return this.encodeDouble;
+            case BOOLEAN:
+                return this.encodeBoolean;
+            case CHAR:
+            case VARCHAR2:
+            case CLOB:
+            case LONG:
+                return this.encodeText;
+            case RAW:
+            case BLOB:
+            case LONG_RAW:
+                return this.encodeBinary;
+            case DATE:
+                return this.encodeDate;
+            case TIME:
+                return this.encodeTime;
+            case TIMESTAMP:
+                return this.encodeTimestamp;
+            case TIMESTAMPTZ:
+                return this.encodeTimestamptz;
+            case INTERVAL_DS:
+                return this.encodeIntervalDs;
+            case INTERVAL_YM:
+                return this.encodeIntervalYm;
+            case TIMESTAMP_LTZ:
+                return this.encodeTimestampltz;
+            case ROWID:
+                return this.encodeRowid;
+            case JSON:
+                return this.encodeJson;
+            default:
+                return type.getObjectId();
+        }
     }
 
     /**

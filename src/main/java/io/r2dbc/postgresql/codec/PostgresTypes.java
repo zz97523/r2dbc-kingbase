@@ -51,6 +51,7 @@ public class PostgresTypes {
         + "       ) as sp "
         + "    ON sp.nspoid = typnamespace "
         + " WHERE typname %s %s "
+        + "   AND (sp.r IS NOT NULL OR typnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'pg_catalog')) "
         + " ORDER BY sp.r, pg_type.oid DESC %s;";
 
     private final static Pattern TYPENAME = Pattern.compile("[a-zA-Z0-9_]+(?: [a-zA-Z0-9_]+)*");

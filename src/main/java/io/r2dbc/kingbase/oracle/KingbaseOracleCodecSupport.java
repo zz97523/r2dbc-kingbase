@@ -187,7 +187,7 @@ final class KingbaseOracleCodecSupport {
 
         @Override
         public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
-            return Collections.singleton(this.oracleType.getOid());
+            return Collections.singleton((PostgresTypeIdentifier) () -> this.typeOids.encodeOid(this.oracleType));
         }
 
         @Override
@@ -209,12 +209,12 @@ final class KingbaseOracleCodecSupport {
 
         @Override
         public EncodedParameter encode(Object value) {
-            return encode(value, this.oracleType.getObjectId());
+            return encode(value, this.typeOids.encodeOid(this.oracleType));
         }
 
         @Override
         public EncodedParameter encodeNull() {
-            return nullParameter(this.oracleType.getObjectId());
+            return nullParameter(this.typeOids.encodeOid(this.oracleType));
         }
 
         @Override

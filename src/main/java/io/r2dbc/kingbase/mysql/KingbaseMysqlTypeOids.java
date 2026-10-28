@@ -173,6 +173,7 @@ final class KingbaseMysqlTypeOids {
     static Mono<KingbaseMysqlTypeOids> load(PostgresqlConnection connection) {
         KingbaseMysqlTypeOids oids = postgresqlDefaults();
         return PostgresTypes.from(connection).lookupTypes(LOOKUP_TYPENAMES)
+            .distinct(type -> type.getName().toLowerCase(Locale.ROOT))
             .doOnNext(type -> oids.accept(type.getName(), type.getObjectId(), type.getArrayObjectId()))
             .then(Mono.just(oids))
             .onErrorMap(error -> new R2dbcNonTransientResourceException(
@@ -433,6 +434,36 @@ final class KingbaseMysqlTypeOids {
 
     int encodeMoney() {
         return this.encodeMoney;
+    }
+
+    int encodeOid(KingbaseMysqlType type) {
+        switch (type) {
+            case MONEY:
+                return this.encodeMoney;
+            case BIT:
+                return this.encodeBitAsInt;
+            case YEAR:
+                return this.encodeYear;
+            case DATE:
+                return this.encodeDate;
+            case TIME:
+                return this.encodeTime;
+            case DATETIME:
+                return this.encodeTimestamp;
+            case TIMESTAMP:
+                return this.encodeTimestamptz;
+            case VARCHAR:
+            case TEXT:
+                return this.encodeText;
+            case BLOB:
+                return this.encodeBinary;
+            case ROWID:
+                return this.encodeRowid;
+            case BOOLEAN:
+                return this.encodeBoolean;
+            default:
+                return type.getObjectId();
+        }
     }
 
     int oid(String typname) {
