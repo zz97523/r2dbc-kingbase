@@ -31,6 +31,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
 import java.time.Year;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -201,9 +202,13 @@ final class KingbaseMysqlTemporalCodecs {
         Instant doDecode(ByteBuf buffer, int dataType, Format format, Class<? extends Instant> type) {
             String text = ByteBufUtils.decode(buffer).trim().replace(' ', 'T');
             try {
-                return Instant.parse(text.endsWith("Z") ? text : text + "Z");
-            } catch (Exception ex) {
-                return LocalDateTime.parse(text.replace("Z", "")).toInstant(ZoneOffset.UTC);
+                return Instant.parse(text);
+            } catch (RuntimeException ignored) {
+                try {
+                    return OffsetDateTime.parse(text).toInstant();
+                } catch (RuntimeException noOffset) {
+                    return LocalDateTime.parse(text).atZone(ZoneId.systemDefault()).toInstant();
+                }
             }
         }
 
@@ -236,8 +241,8 @@ final class KingbaseMysqlTemporalCodecs {
             String text = ByteBufUtils.decode(buffer).trim().replace(' ', 'T');
             try {
                 return OffsetDateTime.parse(text);
-            } catch (Exception ex) {
-                return LocalDateTime.parse(text).atOffset(ZoneOffset.UTC);
+            } catch (RuntimeException noOffset) {
+                return LocalDateTime.parse(text).atZone(ZoneId.systemDefault()).toOffsetDateTime();
             }
         }
 
@@ -319,8 +324,12 @@ final class KingbaseMysqlTemporalCodecs {
             String text = ByteBufUtils.decode(buffer).trim().replace(' ', 'T');
             try {
                 return ZonedDateTime.parse(text);
-            } catch (Exception ex) {
-                return LocalDateTime.parse(text).atZone(ZoneOffset.UTC);
+            } catch (RuntimeException noZone) {
+                try {
+                    return OffsetDateTime.parse(text).toZonedDateTime();
+                } catch (RuntimeException noOffset) {
+                    return LocalDateTime.parse(text).atZone(ZoneId.systemDefault());
+                }
             }
         }
 

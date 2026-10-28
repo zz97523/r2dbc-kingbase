@@ -203,7 +203,7 @@ final class KingbaseMysqlTypeOids {
      */
     static Mono<KingbaseMysqlTypeOids> load(PostgresqlConnection connection) {
         KingbaseMysqlTypeOids oids = postgresqlDefaults();
-        return PostgresTypes.from(connection).lookupTypes(LOOKUP_TYPENAMES)
+        return PostgresTypes.from(connection).lookupTypesIncludingImplicitSchemas(LOOKUP_TYPENAMES)
             .distinct(type -> type.getName().toLowerCase(Locale.ROOT))
             .doOnNext(type -> oids.accept(type.getName(), type.getObjectId(), type.getArrayObjectId()))
             .then(Mono.just(oids))

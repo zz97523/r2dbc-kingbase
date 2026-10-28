@@ -184,7 +184,7 @@ final class KingbaseOracleTypeOids {
 
     static Mono<KingbaseOracleTypeOids> load(PostgresqlConnection connection) {
         KingbaseOracleTypeOids oids = postgresqlDefaults();
-        return PostgresTypes.from(connection).lookupTypes(LOOKUP_TYPENAMES)
+        return PostgresTypes.from(connection).lookupTypesIncludingImplicitSchemas(LOOKUP_TYPENAMES)
             .distinct(type -> type.getName().toLowerCase(Locale.ROOT))
             .doOnNext(type -> oids.accept(type.getName(), type.getObjectId(), type.getArrayObjectId()))
             .then(loadCompositeTypes(connection, oids))
@@ -197,7 +197,7 @@ final class KingbaseOracleTypeOids {
                                                   KingbaseOracleTypeOids oids) {
         String sql = "SELECT t.oid, t.typarray, t.typname "
             + "FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace "
-            + "WHERE t.typtype='c' AND n.nspname IN (SELECT unnest(current_schemas(false)))";
+            + "WHERE t.typtype='c' AND n.nspname IN (SELECT unnest(current_schemas(true)))";
         return Flux.from(connection.createStatement(sql).execute())
             .flatMap(result -> result.map((row, metadata) -> {
                 Long oid = row.get("oid", Long.class);

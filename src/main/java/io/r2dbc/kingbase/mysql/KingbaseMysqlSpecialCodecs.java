@@ -197,7 +197,7 @@ final class KingbaseMysqlSpecialCodecs {
 
         @Override
         public Class<?> type() {
-            return String.class;
+            return KingbaseXml.class;
         }
 
         @Override
