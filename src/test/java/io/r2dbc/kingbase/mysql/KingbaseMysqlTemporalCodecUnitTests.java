@@ -11,7 +11,9 @@ import io.r2dbc.postgresql.util.ByteBufUtils;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +26,8 @@ final class KingbaseMysqlTemporalCodecUnitTests {
     private static final int DATETIME = 9_501;
 
     private static final int TIME = 9_502;
+
+    private static final int TIMESTAMP = 9_503;
 
     private final KingbaseMysqlTypeOids typeOids = typeOids();
 
@@ -53,10 +57,23 @@ final class KingbaseMysqlTemporalCodecUnitTests {
             .isEqualTo(value.negated());
     }
 
+    @Test
+    void shouldDecodeTimestampWithoutOffsetInSessionTimeZone() {
+        KingbaseMysqlTemporalCodecs.InstantCodec codec =
+            new KingbaseMysqlTemporalCodecs.InstantCodec(TEST, this.typeOids);
+
+        Instant decoded = codec.decode(ByteBufUtils.encode(TEST, "1970-01-01 08:00:00"),
+            TIMESTAMP, FORMAT_TEXT, Instant.class);
+
+        org.assertj.core.api.Assertions.assertThat(decoded).isEqualTo(
+            LocalDateTime.of(1970, 1, 1, 8, 0).atZone(ZoneId.systemDefault()).toInstant());
+    }
+
     private static KingbaseMysqlTypeOids typeOids() {
         Map<String, Integer> types = new HashMap<>();
         types.put("datetime", DATETIME);
         types.put("time", TIME);
+        types.put("timestamp", TIMESTAMP);
         return KingbaseMysqlTypeOids.withNamedTypes(types);
     }
 

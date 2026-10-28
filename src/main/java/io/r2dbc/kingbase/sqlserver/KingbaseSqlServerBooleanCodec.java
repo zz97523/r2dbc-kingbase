@@ -88,6 +88,9 @@ final class KingbaseSqlServerBooleanCodec implements Codec<Boolean>, CodecMetada
         Assert.requireNonNull(format, "format must not be null");
         Assert.requireNonNull(type, "type must not be null");
 
+        if (type == Object.class) {
+            return this.typeOids.isDefaultBoolean(dataType);
+        }
         if (!(type == Boolean.class || type == Boolean.TYPE)) {
             return false;
         }

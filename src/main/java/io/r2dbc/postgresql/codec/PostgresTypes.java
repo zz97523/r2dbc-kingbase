@@ -54,6 +54,9 @@ public class PostgresTypes {
         + "   AND (sp.r IS NOT NULL OR typnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'pg_catalog')) "
         + " ORDER BY sp.r, pg_type.oid DESC %s;";
 
+    private static final String SELECT_PG_TYPE_WITH_IMPLICIT_SCHEMAS =
+        SELECT_PG_TYPE.replace("current_schemas(false)", "current_schemas(true)");
+
     private final static Pattern TYPENAME = Pattern.compile("[a-zA-Z0-9_]+(?: [a-zA-Z0-9_]+)*");
 
     private final PostgresqlConnection connection;
@@ -85,6 +88,24 @@ public class PostgresTypes {
 
     public Flux<PostgresType> lookupTypes(Iterable<String> typeNames) {
 
+        return lookupTypes(typeNames, SELECT_PG_TYPE);
+    }
+
+    /**
+     * Look up types using the complete effective schema search order, including implicit system
+     * schemas. KingbaseES exposes compatibility-mode types from implicit schemas such as
+     * {@code sys}; omitting those schemas can select a same-named {@code pg_catalog} type instead.
+     *
+     * @param typeNames type names to resolve
+     * @return types ordered by the server's effective schema search order
+     */
+    public Flux<PostgresType> lookupTypesIncludingImplicitSchemas(Iterable<String> typeNames) {
+
+        return lookupTypes(typeNames, SELECT_PG_TYPE_WITH_IMPLICIT_SCHEMAS);
+    }
+
+    private Flux<PostgresType> lookupTypes(Iterable<String> typeNames, String selectPgType) {
+
         StringJoiner joiner = new StringJoiner(",", "(", ")");
         AtomicBoolean hasType = new AtomicBoolean();
 
@@ -102,7 +123,7 @@ public class PostgresTypes {
             return Flux.empty();
         }
 
-        return this.connection.createStatement(String.format(SELECT_PG_TYPE, "IN", joiner, "")).execute()
+        return this.connection.createStatement(String.format(selectPgType, "IN", joiner, "")).execute()
             .flatMap(it -> it.map(PostgresTypes::createType));
     }
 

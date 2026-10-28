@@ -22,6 +22,7 @@ import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.spi.R2dbcNonTransientResourceException;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -78,7 +79,7 @@ final class KingbaseSqlServerTypeOids {
         "bit", "bool", "boolean",
         "date", "time", "datetime", "datetime2", "smalldatetime", "datetimeoffset",
         // omit bare "char" — PG internal char / T-SQL char(1) must not become encodeText default
-        "nchar", "varchar", "nvarchar", "text", "ntext", "bpchar",
+        "nchar", "varchar", "nvarchar", "text", "ntext", "bpchar", "bpcharbyte", "varcharbyte",
         "binary", "varbinary", "image", "bytea",
         "uniqueidentifier", "uuid",
         "timestamp", "rowversion",
@@ -93,9 +94,15 @@ final class KingbaseSqlServerTypeOids {
 
     private final Set<Integer> numericOids = new HashSet<>();
 
+    private final Map<Integer, Class<?>> numericJavaTypes = new HashMap<>();
+
     private final Set<Integer> textOids = new HashSet<>();
 
+    private final Set<Integer> characterOids = new HashSet<>();
+
     private final Set<Integer> binaryOids = new HashSet<>();
+
+    private final Set<Integer> rowVersionOids = new HashSet<>();
 
     private final Set<Integer> bitOids = new HashSet<>();
 
@@ -223,7 +230,15 @@ final class KingbaseSqlServerTypeOids {
         addAll(this.timeOids, TIME, TIMETZ, INTERVAL);
         addAll(this.timestampOids, TIMESTAMP, TIMESTAMPTZ, DATE);
         addAll(this.numericOids, INT2, INT4, INT8, FLOAT4, FLOAT8, NUMERIC, OID);
+        this.numericJavaTypes.put(INT2.getObjectId(), Short.class);
+        this.numericJavaTypes.put(INT4.getObjectId(), Integer.class);
+        this.numericJavaTypes.put(INT8.getObjectId(), Long.class);
+        this.numericJavaTypes.put(OID.getObjectId(), Long.class);
+        this.numericJavaTypes.put(FLOAT4.getObjectId(), Float.class);
+        this.numericJavaTypes.put(FLOAT8.getObjectId(), Double.class);
+        this.numericJavaTypes.put(NUMERIC.getObjectId(), BigDecimal.class);
         addAll(this.textOids, TEXT, VARCHAR, BPCHAR);
+        addAll(this.characterOids, TEXT, VARCHAR, BPCHAR);
         addAll(this.binaryOids, BYTEA);
         addAll(this.bitOids, BIT, VARBIT, BYTEA, INT2, INT4, INT8);
         addAll(this.booleanOids, BOOL, INT2, INT4, INT8, NUMERIC);
@@ -289,8 +304,13 @@ final class KingbaseSqlServerTypeOids {
                 }
                 break;
             case "timestamp":
-                this.timestampOids.add(oid);
-                setEncodeTimestamp(oid);
+                if (pgCatalog) {
+                    this.timestampOids.add(oid);
+                    setEncodeTimestamp(oid);
+                } else {
+                    this.binaryOids.add(oid);
+                    this.rowVersionOids.add(oid);
+                }
                 break;
             case "datetimeoffset":
                 this.timestampOids.add(oid);
@@ -313,18 +333,29 @@ final class KingbaseSqlServerTypeOids {
                 break;
             case "tinyint":
             case "smallint":
+                addNumericType(oid, Short.class);
+                break;
             case "int":
             case "integer":
+                addNumericType(oid, Integer.class);
+                break;
             case "bigint":
+                addNumericType(oid, Long.class);
+                break;
             case "real":
+                addNumericType(oid, Float.class);
+                break;
             case "float":
             case "double":
+                addNumericType(oid, Double.class);
+                break;
             case "decimal":
             case "numeric":
+                addNumericType(oid, BigDecimal.class);
+                break;
             case "smallmoney":
-                this.numericOids.add(oid);
-                this.bitOids.add(oid);
-                this.booleanOids.add(oid);
+                addNumericType(oid, BigDecimal.class);
+                this.moneyOids.add(oid);
                 break;
             case "money":
                 this.moneyOids.add(oid);
@@ -332,6 +363,7 @@ final class KingbaseSqlServerTypeOids {
                 break;
             case "nchar":
                 this.textOids.add(oid);
+                this.characterOids.add(oid);
                 this.dateOids.add(oid);
                 this.timeOids.add(oid);
                 this.timestampOids.add(oid);
@@ -339,6 +371,7 @@ final class KingbaseSqlServerTypeOids {
                 break;
             case "varchar":
                 this.textOids.add(oid);
+                this.characterOids.add(oid);
                 if (!pgCatalog) {
                     this.encodeText = oid;
                 } else {
@@ -347,13 +380,24 @@ final class KingbaseSqlServerTypeOids {
                 break;
             case "char":
                 this.textOids.add(oid);
+                this.characterOids.add(oid);
                 break;
             case "bpchar":
                 this.textOids.add(oid);
+                this.characterOids.add(oid);
                 setEncodeText(oid, BPCHAR);
+                break;
+            case "bpcharbyte":
+            case "varcharbyte":
+                this.textOids.add(oid);
+                this.characterOids.add(oid);
+                this.dateOids.add(oid);
+                this.timeOids.add(oid);
+                this.timestampOids.add(oid);
                 break;
             case "nvarchar":
                 this.textOids.add(oid);
+                this.characterOids.add(oid);
                 this.dateOids.add(oid);
                 this.timeOids.add(oid);
                 this.timestampOids.add(oid);
@@ -361,19 +405,23 @@ final class KingbaseSqlServerTypeOids {
                 break;
             case "ntext":
                 this.textOids.add(oid);
+                this.characterOids.add(oid);
                 this.dateOids.add(oid);
                 this.timeOids.add(oid);
                 this.timestampOids.add(oid);
                 setEncodeText(oid, TEXT);
                 break;
             case "text":
-            case "clob":
-            case "nclob":
                 this.textOids.add(oid);
+                this.characterOids.add(oid);
                 this.dateOids.add(oid);
                 this.timeOids.add(oid);
                 this.timestampOids.add(oid);
                 setEncodeText(oid, TEXT);
+                break;
+            case "clob":
+            case "nclob":
+                this.textOids.add(oid);
                 break;
             case "binary":
             case "varbinary":
@@ -387,6 +435,7 @@ final class KingbaseSqlServerTypeOids {
                 break;
             case "rowversion":
                 this.binaryOids.add(oid);
+                this.rowVersionOids.add(oid);
                 this.bitOids.add(oid);
                 setEncodeBinary(oid, BYTEA);
                 break;
@@ -415,6 +464,13 @@ final class KingbaseSqlServerTypeOids {
         if (typname != null && oid > 0) {
             this.arrayOids.put(typname.toLowerCase(Locale.ROOT), oid);
         }
+    }
+
+    private void addNumericType(int oid, Class<?> javaType) {
+        this.numericOids.add(oid);
+        this.bitOids.add(oid);
+        this.booleanOids.add(oid);
+        this.numericJavaTypes.put(oid, javaType);
     }
 
     int oid(String typname) {
@@ -545,12 +601,24 @@ final class KingbaseSqlServerTypeOids {
         return this.numericOids.contains(oid);
     }
 
+    boolean isDefaultNumeric(int oid, Class<?> javaType) {
+        return javaType.equals(this.numericJavaTypes.get(oid));
+    }
+
     boolean isText(int oid) {
         return this.textOids.contains(oid);
     }
 
+    boolean isCharacter(int oid) {
+        return this.characterOids.contains(oid);
+    }
+
     boolean isBinary(int oid) {
         return this.binaryOids.contains(oid) || equalsPg(oid, BYTEA);
+    }
+
+    boolean isRowVersion(int oid) {
+        return this.rowVersionOids.contains(oid);
     }
 
     boolean isBit(int oid) {
@@ -559,6 +627,10 @@ final class KingbaseSqlServerTypeOids {
 
     boolean isBoolean(int oid) {
         return this.booleanOids.contains(oid);
+    }
+
+    boolean isDefaultBoolean(int oid) {
+        return oid == this.encodeBitAsInt || equalsPg(oid, BOOL);
     }
 
     boolean isUuid(int oid) {

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +41,16 @@ final class KingbaseSqlServerCompatibilityCodecUnitTests {
 
     private static final int DATE_ARRAY = 12083;
 
+    private static final int BIT = 7915;
+
+    private static final int TINYINT = 5026;
+
+    private static final int NVARCHAR = 5041;
+
+    private static final int VARBINARY = 5024;
+
+    private static final int ROWVERSION = 5043;
+
     private DefaultCodecs codecs;
 
     @BeforeEach
@@ -51,6 +62,11 @@ final class KingbaseSqlServerCompatibilityCodecUnitTests {
         types.put("_xml", XML_ARRAY);
         types.put("date", DATE);
         types.put("_date", DATE_ARRAY);
+        types.put("bit", BIT);
+        types.put("tinyint", TINYINT);
+        types.put("nvarchar", NVARCHAR);
+        types.put("varbinary", VARBINARY);
+        types.put("timestamp", ROWVERSION);
 
         this.codecs = new DefaultCodecs(TEST, false);
         List<Codec<?>> sqlServerCodecs = KingbaseSqlServerCodecs.create(
@@ -109,5 +125,28 @@ final class KingbaseSqlServerCompatibilityCodecUnitTests {
         org.assertj.core.api.Assertions.assertThat(typeOids.oid("money")).isEqualTo(MONEY);
         org.assertj.core.api.Assertions.assertThat(typeOids.arrayOid("money")).isEqualTo(MONEY_ARRAY);
         org.assertj.core.api.Assertions.assertThat(typeOids.encodeMoney()).isEqualTo(MONEY);
+    }
+
+    @Test
+    void shouldUseSqlServerDefaultJavaTypes() {
+        Object bit = this.codecs.decode(ByteBufUtils.encode(TEST, "1"),
+            BIT, FORMAT_TEXT, Object.class);
+        Object tinyint = this.codecs.decode(ByteBufUtils.encode(TEST, "255"),
+            TINYINT, FORMAT_TEXT, Object.class);
+        Object text = this.codecs.decode(ByteBufUtils.encode(TEST, "kingbase"),
+            NVARCHAR, FORMAT_TEXT, Object.class);
+        Object rowVersion = this.codecs.decode(ByteBufUtils.encode(TEST, "\\x0000000100000002"),
+            ROWVERSION, FORMAT_TEXT, Object.class);
+
+        org.assertj.core.api.Assertions.assertThat(bit).isEqualTo(true).isInstanceOf(Boolean.class);
+        org.assertj.core.api.Assertions.assertThat(tinyint)
+            .isEqualTo(Short.valueOf((short) 255))
+            .isInstanceOf(Short.class);
+        org.assertj.core.api.Assertions.assertThat(text).isEqualTo("kingbase").isInstanceOf(String.class);
+        org.assertj.core.api.Assertions.assertThat(rowVersion)
+            .isEqualTo(new byte[]{0, 0, 0, 1, 0, 0, 0, 2})
+            .isInstanceOf(byte[].class);
+
+        assertThat(this.codecs.encodeNull(ByteBuffer.class)).hasType(VARBINARY);
     }
 }

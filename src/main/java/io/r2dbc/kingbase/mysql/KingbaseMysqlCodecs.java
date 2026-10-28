@@ -65,6 +65,7 @@ final class KingbaseMysqlCodecs {
             new KingbaseMysqlTextBinaryCodecs.RowIdCodec(allocator, typeOids);
         codecs.add(money);
         codecs.add(new KingbaseMysqlTextBinaryCodecs.MoneyBigDecimalCodec(allocator, typeOids));
+        codecs.addAll(KingbaseMysqlSpecialCodecs.create(allocator, typeOids));
         codecs.add(new KingbaseMysqlTextBinaryCodecs.StringCodec(allocator, typeOids));
         codecs.add(new KingbaseMysqlTextBinaryCodecs.EnumCodec(allocator, typeOids));
         codecs.addAll(KingbaseMysqlLobCodecs.create(allocator, typeOids));

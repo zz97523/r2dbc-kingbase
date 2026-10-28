@@ -27,7 +27,7 @@ final class KingbaseMysqlTypeOidLoadingUnitTests {
 
     @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
-    void shouldKeepVisibleDatetimeInsteadOfLaterPgCatalogDuplicate() {
+    void shouldKeepImplicitSysDatetimeInsteadOfLaterPgCatalogDuplicate() {
         PostgresqlConnection connection = mock(PostgresqlConnection.class);
         PostgresqlStatement statement = mock(PostgresqlStatement.class);
         PostgresqlResult result = mock(PostgresqlResult.class);
@@ -35,7 +35,8 @@ final class KingbaseMysqlTypeOidLoadingUnitTests {
         Row visibleDatetime = row(9_801L, "datetime", "D");
         Row catalogDatetime = row(9_802L, "datetime", "D");
 
-        when(connection.createStatement(argThat(sql -> sql.contains("sp.r IS NOT NULL")
+        when(connection.createStatement(argThat(sql -> sql.contains("current_schemas(true)")
+            && sql.contains("sp.r IS NOT NULL")
             && sql.contains("'datetime'")))).thenReturn(statement);
         when(statement.execute()).thenReturn(Flux.just(result));
         when(result.map(any(BiFunction.class))).thenAnswer(invocation -> {

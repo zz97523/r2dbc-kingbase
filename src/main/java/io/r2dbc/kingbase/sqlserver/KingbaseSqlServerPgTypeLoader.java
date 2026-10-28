@@ -36,8 +36,6 @@ import java.util.StringJoiner;
  */
 final class KingbaseSqlServerPgTypeLoader {
 
-    private static final String PG_CATALOG = "pg_catalog";
-
     private KingbaseSqlServerPgTypeLoader() {
     }
 
@@ -64,12 +62,12 @@ final class KingbaseSqlServerPgTypeLoader {
             return Flux.empty();
         }
         String sql = "SELECT t.oid, t.typarray, t.typname, n.nspname, "
-            + "array_position(current_schemas(false), n.nspname) AS schema_rank "
+            + "array_position(current_schemas(true), n.nspname) AS schema_rank "
             + "FROM pg_catalog.pg_type t "
             + "INNER JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace "
             + "WHERE lower(t.typname) IN (" + joiner + ") "
             + "AND t.typtype IN ('b', 'd') "
-            + "AND (n.nspname = ANY(current_schemas(false)) OR n.nspname = '" + PG_CATALOG + "')";
+            + "AND n.nspname = ANY(current_schemas(true))";
         return connection.createStatement(sql)
             .execute()
             .flatMap(result -> result.map((row, meta) -> new PgTypeRow(
@@ -126,8 +124,8 @@ final class KingbaseSqlServerPgTypeLoader {
             + "INNER JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace "
             + "WHERE lower(t.typname) = lower('" + typname.toLowerCase(Locale.ROOT) + "') "
             + "AND t.typtype IN ('b', 'd') "
-            + "AND (n.nspname = ANY(current_schemas(false)) OR n.nspname = '" + PG_CATALOG + "') "
-            + "ORDER BY array_position(current_schemas(false), n.nspname) NULLS LAST, t.oid DESC "
+            + "AND n.nspname = ANY(current_schemas(true)) "
+            + "ORDER BY array_position(current_schemas(true), n.nspname) NULLS LAST, t.oid DESC "
             + "LIMIT 1";
         return connection.createStatement(sql)
             .execute()

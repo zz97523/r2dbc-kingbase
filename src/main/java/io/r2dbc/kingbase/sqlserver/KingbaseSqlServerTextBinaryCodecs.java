@@ -209,7 +209,7 @@ final class KingbaseSqlServerTextBinaryCodecs {
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
-            if (type != String.class) {
+            if (type != String.class && !(type == Object.class && this.typeOids.isCharacter(dataType))) {
                 return false;
             }
             return this.typeOids.canDecodeTextExtension(dataType, format,
@@ -382,7 +382,7 @@ final class KingbaseSqlServerTextBinaryCodecs {
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
-            return type == byte[].class
+            return (type == byte[].class || (type == Object.class && this.typeOids.isRowVersion(dataType)))
                 && this.typeOids.canDecodeTextExtension(dataType, format,
                 this.typeOids.isBinary(dataType) || this.typeOids.isText(dataType));
         }

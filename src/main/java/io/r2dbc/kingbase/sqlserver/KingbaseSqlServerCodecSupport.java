@@ -310,7 +310,11 @@ final class KingbaseSqlServerCodecSupport {
         public boolean canDecode(int dataType, Format format, Class<?> type) {
             Assert.requireNonNull(format, "format must not be null");
             Assert.requireNonNull(type, "type must not be null");
-            if (!isTarget(type, this.javaType)) {
+            if (type == Object.class) {
+                if (!this.typeOids.isDefaultNumeric(dataType, this.javaType)) {
+                    return false;
+                }
+            } else if (!isTarget(type, this.javaType)) {
                 return false;
             }
             return this.typeOids.canDecodeTextExtension(dataType, format,
