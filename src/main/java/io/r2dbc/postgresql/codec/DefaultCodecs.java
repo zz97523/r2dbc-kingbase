@@ -48,6 +48,8 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
 
     private final CodecLookup codecLookup;
 
+    private volatile Function<R2dbcType, PostgresTypeIdentifier> r2dbcTypeMapper = PostgresqlObjectId::valueOf;
+
     /**
      * Create a new instance of {@link DefaultCodecs} preferring detached (copied buffers).
      *
@@ -211,6 +213,16 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
         this.codecLookup.afterCodecAdded();
     }
 
+    /**
+     * Configure how standard R2DBC types are mapped to wire-protocol type identifiers.
+     * Compatibility modes use this hook after their database type OIDs have been resolved.
+     *
+     * @param mapper type mapper for this connection
+     */
+    public void setR2dbcTypeMapper(Function<R2dbcType, PostgresTypeIdentifier> mapper) {
+        this.r2dbcTypeMapper = Assert.requireNonNull(mapper, "mapper must not be null");
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public <T> @Nullable T decode(@Nullable ByteBuf buffer, int dataType, Format format, Class<? extends T> type) {
@@ -262,7 +274,7 @@ public final class DefaultCodecs implements Codecs, CodecRegistry {
             }
 
             if (parameter.getType() instanceof R2dbcType) {
-                dataType = PostgresqlObjectId.valueOf((R2dbcType) parameter.getType());
+                dataType = this.r2dbcTypeMapper.apply((R2dbcType) parameter.getType());
             }
 
             if (parameter.getType() instanceof PostgresTypeIdentifier) {

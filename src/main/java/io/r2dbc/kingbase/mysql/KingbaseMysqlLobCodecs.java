@@ -266,6 +266,14 @@ final class KingbaseMysqlLobCodecs {
         }
 
         @Override
+        public Iterable<? extends PostgresTypeIdentifier> getDataTypes() {
+            return Arrays.asList(
+                (PostgresTypeIdentifier) () -> this.typeOids.encodeBinary(),
+                BYTEA
+            );
+        }
+
+        @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
             return type == Blob.class
                 && this.typeOids.canDecodeTextExtension(dataType, format,

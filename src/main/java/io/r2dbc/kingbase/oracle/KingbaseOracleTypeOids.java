@@ -17,9 +17,11 @@
 package io.r2dbc.kingbase.oracle;
 
 import io.r2dbc.postgresql.api.PostgresqlConnection;
+import io.r2dbc.postgresql.codec.PostgresTypeIdentifier;
 import io.r2dbc.postgresql.codec.PostgresTypes;
 import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
+import io.r2dbc.spi.R2dbcType;
 import io.r2dbc.spi.R2dbcNonTransientResourceException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -586,6 +588,90 @@ final class KingbaseOracleTypeOids {
 
     int encodeJson() {
         return this.encodeJson;
+    }
+
+    PostgresTypeIdentifier r2dbcType(R2dbcType type) {
+        final int oid;
+        switch (type) {
+            case NCHAR:
+                oid = firstOid(this.encodeText, "nchar", "nvarchar2", "char");
+                break;
+            case CHAR:
+                oid = firstOid(this.encodeText, "char", "bpchar");
+                break;
+            case NVARCHAR:
+                oid = firstOid(this.encodeText, "nvarchar2", "varchar2", "varchar");
+                break;
+            case VARCHAR:
+                oid = firstOid(this.encodeText, "varchar2", "varchar");
+                break;
+            case CLOB:
+                oid = firstOid(this.encodeText, "clob", "text");
+                break;
+            case NCLOB:
+                oid = firstOid(this.encodeText, "nclob", "clob", "text");
+                break;
+            case BOOLEAN:
+                oid = this.encodeBoolean;
+                break;
+            case BINARY:
+            case VARBINARY:
+                oid = firstOid(this.encodeBinary, "raw", "bytea");
+                break;
+            case BLOB:
+                oid = firstOid(this.encodeBinary, "blob", "bytea", "raw");
+                break;
+            case TINYINT:
+            case SMALLINT:
+                oid = firstOid(this.encodeNumber, "smallint", "number", "numeric");
+                break;
+            case INTEGER:
+                oid = firstOid(this.encodeNumber, "integer", "int", "number", "numeric");
+                break;
+            case BIGINT:
+                oid = firstOid(this.encodeNumber, "bigint", "number", "numeric");
+                break;
+            case NUMERIC:
+            case DECIMAL:
+                oid = this.encodeNumber;
+                break;
+            case FLOAT:
+            case REAL:
+                oid = this.encodeFloat;
+                break;
+            case DOUBLE:
+                oid = this.encodeDouble;
+                break;
+            case DATE:
+                oid = this.encodeDate;
+                break;
+            case TIME:
+                oid = this.encodeTime;
+                break;
+            case TIME_WITH_TIME_ZONE:
+                oid = firstOid(this.encodeTime, "timetz", "time");
+                break;
+            case TIMESTAMP:
+                oid = this.encodeTimestamp;
+                break;
+            case TIMESTAMP_WITH_TIME_ZONE:
+                oid = this.encodeTimestamptz;
+                break;
+            default:
+                oid = PostgresqlObjectId.valueOf(type).getObjectId();
+                break;
+        }
+        return () -> oid;
+    }
+
+    private int firstOid(int fallback, String... names) {
+        for (String name : names) {
+            int oid = oid(name);
+            if (oid > 0) {
+                return oid;
+            }
+        }
+        return fallback;
     }
 
     int encodeOid(KingbaseOracleType type) {

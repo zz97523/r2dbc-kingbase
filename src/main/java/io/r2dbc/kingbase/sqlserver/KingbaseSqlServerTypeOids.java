@@ -17,9 +17,11 @@
 package io.r2dbc.kingbase.sqlserver;
 
 import io.r2dbc.postgresql.api.PostgresqlConnection;
+import io.r2dbc.postgresql.codec.PostgresTypeIdentifier;
 import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.spi.R2dbcNonTransientResourceException;
+import io.r2dbc.spi.R2dbcType;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -507,6 +509,9 @@ final class KingbaseSqlServerTypeOids {
     }
 
     private void setEncodeText(int oid, PostgresqlObjectId pgDefault) {
+        if (!PostgresqlObjectId.isValid(this.encodeText) && !PostgresqlObjectId.isValid(oid)) {
+            return;
+        }
         if (preferEncodeOid(this.encodeText, oid, pgDefault)) {
             this.encodeText = oid;
         }
@@ -740,8 +745,118 @@ final class KingbaseSqlServerTypeOids {
         return oid == null ? 0 : oid;
     }
 
+    PostgresTypeIdentifier r2dbcType(R2dbcType type) {
+        final int oid;
+        switch (type) {
+            case NCHAR:
+                oid = firstOid(this.encodeText, "nchar", "nvarchar", "bpcharbyte");
+                break;
+            case CHAR:
+                oid = firstOid(this.encodeText, "bpcharbyte", "nchar", "bpchar");
+                break;
+            case NVARCHAR:
+                oid = firstOid(this.encodeText, "nvarchar", "ntext", "varcharbyte");
+                break;
+            case VARCHAR:
+                oid = firstOid(this.encodeText, "varcharbyte", "nvarchar", "varchar");
+                break;
+            case CLOB:
+                oid = firstOid(this.encodeText, "text", "ntext", "varcharbyte");
+                break;
+            case NCLOB:
+                oid = firstOid(this.encodeText, "ntext", "text", "nvarchar");
+                break;
+            case BOOLEAN:
+                oid = this.encodeBoolean;
+                break;
+            case BINARY:
+                oid = firstOid(this.encodeBinary, "binary", "varbinary", "bytea");
+                break;
+            case VARBINARY:
+                oid = firstOid(this.encodeBinary, "varbinary", "binary", "bytea");
+                break;
+            case BLOB:
+                oid = firstOid(this.encodeBinary, "image", "varbinary", "binary", "bytea");
+                break;
+            case TINYINT:
+                oid = firstOid(INT2.getObjectId(), "tinyint", "smallint");
+                break;
+            case SMALLINT:
+                oid = firstOid(INT2.getObjectId(), "smallint", "tinyint");
+                break;
+            case INTEGER:
+                oid = firstOid(INT4.getObjectId(), "int", "integer");
+                break;
+            case BIGINT:
+                oid = firstOid(INT8.getObjectId(), "bigint");
+                break;
+            case NUMERIC:
+            case DECIMAL:
+                oid = firstOid(NUMERIC.getObjectId(), "numeric", "decimal");
+                break;
+            case REAL:
+                oid = firstOid(FLOAT4.getObjectId(), "real");
+                break;
+            case FLOAT:
+            case DOUBLE:
+                oid = firstOid(FLOAT8.getObjectId(), "float", "double");
+                break;
+            case DATE:
+                oid = this.encodeDate;
+                break;
+            case TIME:
+            case TIME_WITH_TIME_ZONE:
+                oid = this.encodeTime;
+                break;
+            case TIMESTAMP:
+                oid = encodeLocalDateTime();
+                break;
+            case TIMESTAMP_WITH_TIME_ZONE:
+                oid = encodeOffsetDateTime();
+                break;
+            default:
+                oid = PostgresqlObjectId.valueOf(type).getObjectId();
+                break;
+        }
+        return () -> oid;
+    }
+
+    private int firstOid(int fallback, String... names) {
+        for (String name : names) {
+            int oid = oid(name);
+            if (oid > 0 && !isPgCatalogAlias(name, oid)) {
+                return oid;
+            }
+        }
+        return fallback;
+    }
+
+    private static boolean isPgCatalogAlias(String name, int oid) {
+        if (!PostgresqlObjectId.isValid(oid)) {
+            return false;
+        }
+        PostgresqlObjectId pgType = PostgresqlObjectId.valueOf(oid);
+        return pgType.name().equalsIgnoreCase(name)
+            || ("int".equals(name) && pgType == INT4)
+            || ("float".equals(name) && pgType == FLOAT8);
+    }
+
     int encodeOid(KingbaseSqlServerType type) {
         switch (type) {
+            case TINYINT:
+                return firstOid(INT2.getObjectId(), "tinyint", "smallint");
+            case SMALLINT:
+                return firstOid(INT2.getObjectId(), "smallint", "tinyint");
+            case INT:
+                return firstOid(INT4.getObjectId(), "int", "integer");
+            case BIGINT:
+                return firstOid(INT8.getObjectId(), "bigint");
+            case REAL:
+                return firstOid(FLOAT4.getObjectId(), "real");
+            case FLOAT:
+                return firstOid(FLOAT8.getObjectId(), "float", "double");
+            case DECIMAL:
+                return firstOid(NUMERIC.getObjectId(), "numeric", "decimal");
             case BIT:
                 return this.encodeBitAsInt;
             case BOOLEAN:

@@ -63,8 +63,11 @@ final class KingbaseOracleLobCodecs {
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
-            return type == Clob.class
-                && this.typeOids.canDecodeTextExtension(dataType, format,
+            if (type == Object.class) {
+                return "clob".equals(this.typeOids.name(dataType))
+                    || "nclob".equals(this.typeOids.name(dataType));
+            }
+            return type == Clob.class && this.typeOids.canDecodeTextExtension(dataType, format,
                 this.typeOids.isText(dataType) || this.typeOids.isBinary(dataType));
         }
 
@@ -118,8 +121,10 @@ final class KingbaseOracleLobCodecs {
 
         @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
-            return type == Blob.class
-                && this.typeOids.canDecodeTextExtension(dataType, format,
+            if (type == Object.class) {
+                return "blob".equals(this.typeOids.name(dataType));
+            }
+            return type == Blob.class && this.typeOids.canDecodeTextExtension(dataType, format,
                 this.typeOids.isBinary(dataType) || this.typeOids.isText(dataType));
         }
 

@@ -32,11 +32,11 @@ final class KingbaseMysqlTypeOidLoadingUnitTests {
         PostgresqlStatement statement = mock(PostgresqlStatement.class);
         PostgresqlResult result = mock(PostgresqlResult.class);
         RowMetadata metadata = mock(RowMetadata.class);
-        Row visibleDatetime = row(9_801L, "datetime", "D");
-        Row catalogDatetime = row(9_802L, "datetime", "D");
+        Row visibleDatetime = row(9_801L, "datetime", "sys", 1);
+        Row catalogDatetime = row(9_802L, "datetime", "pg_catalog", 2);
 
         when(connection.createStatement(argThat(sql -> sql.contains("current_schemas(true)")
-            && sql.contains("sp.r IS NOT NULL")
+            && sql.contains("n.nspname")
             && sql.contains("'datetime'")))).thenReturn(statement);
         when(statement.execute()).thenReturn(Flux.just(result));
         when(result.map(any(BiFunction.class))).thenAnswer(invocation -> {
@@ -51,12 +51,13 @@ final class KingbaseMysqlTypeOidLoadingUnitTests {
         assertThat(typeOids.encodeTimestamp()).isEqualTo(9_801);
     }
 
-    private static Row row(long oid, String name, String category) {
+    private static Row row(long oid, String name, String namespace, int schemaRank) {
         Row row = mock(Row.class);
         when(row.get("oid", Long.class)).thenReturn(oid);
         when(row.get("typarray", Long.class)).thenReturn(0L);
         when(row.get("typname", String.class)).thenReturn(name);
-        when(row.get("typcategory", String.class)).thenReturn(category);
+        when(row.get("nspname", String.class)).thenReturn(namespace);
+        when(row.get("schema_rank", Integer.class)).thenReturn(schemaRank);
         return row;
     }
 

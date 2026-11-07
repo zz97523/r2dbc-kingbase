@@ -20,6 +20,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.api.PostgresqlConnection;
 import io.r2dbc.postgresql.codec.Codec;
 import io.r2dbc.postgresql.codec.CodecRegistry;
+import io.r2dbc.postgresql.codec.DefaultCodecs;
 import io.r2dbc.postgresql.extension.CodecRegistrar;
 import org.reactivestreams.Publisher;
 
@@ -37,6 +38,9 @@ public final class KingbaseOracleCodecRegistrar implements CodecRegistrar {
     public Publisher<Void> register(PostgresqlConnection connection, ByteBufAllocator allocator, CodecRegistry registry) {
         return KingbaseOracleTypeOids.load(connection)
             .doOnNext(typeOids -> {
+                if (registry instanceof DefaultCodecs) {
+                    ((DefaultCodecs) registry).setR2dbcTypeMapper(typeOids::r2dbcType);
+                }
                 List<Codec<?>> codecs = KingbaseOracleCodecs.create(allocator, typeOids);
                 for (int i = codecs.size() - 1; i >= 0; i--) {
                     registry.addFirst(codecs.get(i));

@@ -46,6 +46,7 @@ import static io.r2dbc.kingbase.oracle.KingbaseOracleCodecSupport.encodeText;
 import static io.r2dbc.kingbase.oracle.KingbaseOracleCodecSupport.nullParameter;
 import static io.r2dbc.kingbase.oracle.KingbaseOracleCodecSupport.resolveBindOid;
 import static io.r2dbc.kingbase.oracle.KingbaseOracleTypeOids.equalsPg;
+import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIME;
 import static io.r2dbc.postgresql.codec.PostgresqlObjectId.TIMETZ;
 
 /**
@@ -380,7 +381,8 @@ final class KingbaseOracleTemporalCodecs {
     static final class LocalTimeCodec extends AbstractOracleCodec<LocalTime> {
 
         LocalTimeCodec(ByteBufAllocator allocator, KingbaseOracleTypeOids typeOids) {
-            super(allocator, LocalTime.class, KingbaseOracleType.TIME, typeOids);
+            // Oracle drivers bind LocalTime as TIMESTAMP using the fixed epoch date.
+            super(allocator, LocalTime.class, KingbaseOracleType.TIMESTAMP, typeOids);
         }
 
         @Override
@@ -402,13 +404,20 @@ final class KingbaseOracleTemporalCodecs {
 
         @Override
         public EncodedParameter encode(Object value) {
-            return encode(value, this.typeOids.encodeTime());
+            return encode(value, this.typeOids.encodeTimestamp());
         }
 
         @Override
         public EncodedParameter encode(Object value, int dataType) {
-            int oid = resolveBindOid(dataType, this.typeOids.encodeTime());
-            return encodeText(this.allocator, oid, value.toString());
+            LocalTime time = (LocalTime) value;
+            int oid = resolveBindOid(dataType, this.typeOids.encodeTimestamp());
+            String typeName = this.typeOids.name(oid);
+            if (equalsPg(oid, TIME) || equalsPg(oid, TIMETZ)
+                || "time".equals(typeName) || "timetz".equals(typeName)) {
+                return encodeText(this.allocator, oid, time.toString());
+            }
+            String timestamp = LocalDate.of(1970, 1, 1).atTime(time).toString().replace('T', ' ');
+            return encodeText(this.allocator, oid, timestamp);
         }
     }
 

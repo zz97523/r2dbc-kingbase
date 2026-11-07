@@ -17,10 +17,11 @@
 package io.r2dbc.kingbase.mysql;
 
 import io.r2dbc.postgresql.api.PostgresqlConnection;
-import io.r2dbc.postgresql.codec.PostgresTypes;
+import io.r2dbc.postgresql.codec.PostgresTypeIdentifier;
 import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.spi.R2dbcNonTransientResourceException;
+import io.r2dbc.spi.R2dbcType;
 import reactor.core.publisher.Mono;
 
 import java.util.Arrays;
@@ -76,6 +77,8 @@ import static io.r2dbc.postgresql.message.Format.FORMAT_TEXT;
  * <strong>not</strong> used as defaults — versions/builds may differ; {@code pg_type} is authoritative.
  */
 final class KingbaseMysqlTypeOids {
+
+    private static final String PG_CATALOG = "pg_catalog";
 
     /** MySQL-mode typenames commonly present in Kingbase {@code pg_type}. */
     private static final List<String> LOOKUP_TYPENAMES = Collections.unmodifiableList(Arrays.asList(
@@ -189,7 +192,7 @@ final class KingbaseMysqlTypeOids {
                 if (name != null && name.startsWith("_")) {
                     oids.acceptArray(name.substring(1), oid);
                 } else {
-                    oids.accept(name, oid);
+                    oids.accept(name, oid, null, 0);
                 }
             });
         }
@@ -201,10 +204,8 @@ final class KingbaseMysqlTypeOids {
      */
     static Mono<KingbaseMysqlTypeOids> load(PostgresqlConnection connection) {
         KingbaseMysqlTypeOids oids = postgresqlDefaults();
-        return PostgresTypes.from(connection).lookupTypesIncludingImplicitSchemas(LOOKUP_TYPENAMES)
-            .distinct(type -> type.getName().toLowerCase(Locale.ROOT))
-            .doOnNext(type -> oids.accept(type.getName(), type.getObjectId(), type.getArrayObjectId()))
-            .then(Mono.just(oids))
+        return KingbaseMysqlPgTypeLoader.loadInto(oids, connection, LOOKUP_TYPENAMES)
+            .thenReturn(oids)
             .onErrorMap(error -> new R2dbcNonTransientResourceException(
                 "Cannot resolve Kingbase MySQL compatibility type OIDs", error));
     }
@@ -245,43 +246,56 @@ final class KingbaseMysqlTypeOids {
     }
 
     private void accept(String typname, int oid) {
-        accept(typname, oid, 0);
+        accept(typname, oid, null, 0);
     }
 
-    private void accept(String typname, int oid, int arrayOid) {
+    void accept(String typname, int oid, String namespace, int arrayOid) {
         if (typname == null) {
             return;
         }
+        boolean pgCatalog = PG_CATALOG.equals(namespace);
         String name = typname.toLowerCase(Locale.ROOT);
-        this.namedOids.put(name, oid);
-        if (arrayOid > 0) {
+        if (!this.namedOids.containsKey(name) || !pgCatalog) {
+            this.namedOids.put(name, oid);
+        }
+        if (arrayOid > 0 && (!this.arrayOids.containsKey(name) || !pgCatalog)) {
             this.arrayOids.put(name, arrayOid);
         }
         switch (name) {
             case "date":
                 this.dateOids.add(oid);
                 this.timestampOids.add(oid);
-                this.encodeDate = oid;
+                if (!pgCatalog) {
+                    this.encodeDate = oid;
+                }
                 break;
             case "time":
                 this.timeOids.add(oid);
-                this.encodeTime = oid;
+                if (!pgCatalog) {
+                    this.encodeTime = oid;
+                }
                 break;
             case "datetime":
                 this.timestampOids.add(oid);
                 this.dateOids.add(oid);
-                this.encodeTimestamp = oid;
+                if (!pgCatalog) {
+                    this.encodeTimestamp = oid;
+                }
                 break;
             case "timestamp":
                 this.timestampOids.add(oid);
                 // Prefer datetime for LocalDateTime binds when both exist (JDBC: datetime vs timestamp)
-                this.encodeTimestamptz = oid;
+                if (!pgCatalog) {
+                    this.encodeTimestamptz = oid;
+                }
                 break;
             case "year":
                 this.yearOids.add(oid);
                 this.numericOids.add(oid);
                 this.dateOids.add(oid);
-                this.encodeYear = oid;
+                if (!pgCatalog || !PostgresqlObjectId.isValid(oid)) {
+                    this.encodeYear = oid;
+                }
                 break;
             case "bit":
                 this.bitOids.add(oid);
@@ -302,6 +316,12 @@ final class KingbaseMysqlTypeOids {
                 break;
             case "tinyint":
             case "int1":
+                this.encodeBoolean = oid;
+                this.numericOids.add(oid);
+                this.bitOids.add(oid);
+                this.yearOids.add(oid);
+                this.booleanOids.add(oid);
+                break;
             case "smallint":
             case "mediumint":
             case "int3":
@@ -350,9 +370,8 @@ final class KingbaseMysqlTypeOids {
             case "bytea":
                 this.binaryOids.add(oid);
                 this.bitOids.add(oid);
-                if ("bytea".equals(name)) {
-                    this.encodeBinary = oid;
-                } else if (this.encodeBinary == BYTEA.getObjectId()) {
+                if (!"bytea".equals(name) && (this.encodeBinary == BYTEA.getObjectId()
+                    || "varbinary".equals(name))) {
                     this.encodeBinary = oid;
                 }
                 break;
@@ -499,7 +518,7 @@ final class KingbaseMysqlTypeOids {
     }
 
     int encodeBoolean() {
-        return this.encodeBoolean;
+        return firstOid(this.encodeBoolean, "tinyint", "int1");
     }
 
     int encodeBigintUnsigned() {
@@ -515,7 +534,7 @@ final class KingbaseMysqlTypeOids {
     }
 
     int encodeBinary() {
-        return this.encodeBinary;
+        return firstOid(this.encodeBinary, "varbinary", "binary", "blob", "bytea");
     }
 
     int encodeRowid() {
@@ -542,12 +561,106 @@ final class KingbaseMysqlTypeOids {
         return this.encodePoint;
     }
 
+    PostgresTypeIdentifier r2dbcType(R2dbcType type) {
+        final int oid;
+        switch (type) {
+            case NCHAR:
+            case CHAR:
+                oid = firstOid(this.encodeText, "bpcharbyte", "bpchar", "varchar");
+                break;
+            case NVARCHAR:
+            case VARCHAR:
+                oid = firstOid(this.encodeText, "varcharbyte", "varchar", "text");
+                break;
+            case CLOB:
+            case NCLOB:
+                oid = firstOid(this.encodeText, "clob", "nclob", "longtext", "text");
+                break;
+            case BOOLEAN:
+                oid = encodeBoolean();
+                break;
+            case BINARY:
+                oid = firstOid(encodeBinary(), "binary", "varbinary", "bytea");
+                break;
+            case VARBINARY:
+                oid = firstOid(encodeBinary(), "varbinary", "binary", "bytea");
+                break;
+            case BLOB:
+                oid = firstOid(encodeBinary(), "blob", "longblob", "mediumblob", "tinyblob", "varbinary", "bytea");
+                break;
+            case TINYINT:
+                oid = firstOid(INT2.getObjectId(), "tinyint", "int1");
+                break;
+            case SMALLINT:
+                oid = firstOid(INT2.getObjectId(), "smallint");
+                break;
+            case INTEGER:
+                oid = firstOid(INT4.getObjectId(), "int", "integer");
+                break;
+            case BIGINT:
+                oid = firstOid(INT8.getObjectId(), "bigint");
+                break;
+            case NUMERIC:
+            case DECIMAL:
+                oid = firstOid(NUMERIC.getObjectId(), "decimal", "numeric");
+                break;
+            case REAL:
+            case FLOAT:
+                oid = firstOid(FLOAT4.getObjectId(), "float");
+                break;
+            case DOUBLE:
+                oid = firstOid(FLOAT8.getObjectId(), "double");
+                break;
+            case DATE:
+                oid = this.encodeDate;
+                break;
+            case TIME:
+            case TIME_WITH_TIME_ZONE:
+                oid = this.encodeTime;
+                break;
+            case TIMESTAMP:
+                oid = this.encodeTimestamp;
+                break;
+            case TIMESTAMP_WITH_TIME_ZONE:
+                oid = this.encodeTimestamptz;
+                break;
+            default:
+                oid = PostgresqlObjectId.valueOf(type).getObjectId();
+                break;
+        }
+        return () -> oid;
+    }
+
+    private int firstOid(int fallback, String... names) {
+        for (String name : names) {
+            int oid = oid(name);
+            if (oid > 0) {
+                return oid;
+            }
+        }
+        return fallback;
+    }
+
     int encodeOid(KingbaseMysqlType type) {
         switch (type) {
+            case TINYINT:
+                return firstOid(INT2.getObjectId(), "tinyint", "int1");
+            case SMALLINT:
+                return firstOid(INT2.getObjectId(), "smallint");
+            case INT:
+                return firstOid(INT4.getObjectId(), "int", "integer");
+            case BIGINT:
+                return firstOid(INT8.getObjectId(), "bigint");
+            case FLOAT:
+                return firstOid(FLOAT4.getObjectId(), "float");
+            case DOUBLE:
+                return firstOid(FLOAT8.getObjectId(), "double");
+            case DECIMAL:
+                return firstOid(NUMERIC.getObjectId(), "decimal", "numeric");
             case MONEY:
                 return this.encodeMoney;
             case BIT:
-                return this.encodeBitAsInt;
+                return encodeBitAsInt();
             case YEAR:
                 return this.encodeYear;
             case DATE:
@@ -562,11 +675,11 @@ final class KingbaseMysqlTypeOids {
             case TEXT:
                 return this.encodeText;
             case BLOB:
-                return this.encodeBinary;
+                return encodeBinary();
             case ROWID:
                 return this.encodeRowid;
             case BOOLEAN:
-                return this.encodeBoolean;
+                return encodeBoolean();
             default:
                 return type.getObjectId();
         }
