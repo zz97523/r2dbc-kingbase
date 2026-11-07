@@ -25,6 +25,7 @@ import io.r2dbc.postgresql.util.Assert;
 
 /**
  * An implementation of {@link AuthenticationHandler} that handles {@link AuthenticationCleartextPassword} and {@link AuthenticationMD5Password} messages.
+ * KingbaseES password, LDAP, RADIUS, PAM and BSD authentication use the clear-text password protocol exchange on the client side; the database server performs the selected password validation.
  */
 public final class PasswordAuthenticationHandler implements AuthenticationHandler {
 

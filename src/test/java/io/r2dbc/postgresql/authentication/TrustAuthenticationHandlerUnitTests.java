@@ -17,8 +17,12 @@
 package io.r2dbc.postgresql.authentication;
 
 import io.r2dbc.postgresql.message.backend.AuthenticationOk;
+import io.r2dbc.postgresql.message.backend.AuthenticationSASL;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 /**
@@ -28,8 +32,17 @@ final class TrustAuthenticationHandlerUnitTests {
 
     @Test
     void handle() {
-        assertThatIllegalArgumentException().isThrownBy(() -> TrustAuthenticationHandler.INSTANCE.handle(AuthenticationOk.INSTANCE))
-            .withMessage("Trust does not require a response");
+        assertThat(TrustAuthenticationHandler.supports(AuthenticationOk.INSTANCE)).isTrue();
+        assertThat(TrustAuthenticationHandler.INSTANCE.handle(AuthenticationOk.INSTANCE)).isNull();
+    }
+
+    @Test
+    void rejectAuthenticationChallenge() {
+        AuthenticationSASL message = new AuthenticationSASL(Collections.singletonList("SCRAM-SHA-256"));
+
+        assertThat(TrustAuthenticationHandler.supports(message)).isFalse();
+        assertThatIllegalArgumentException().isThrownBy(() -> TrustAuthenticationHandler.INSTANCE.handle(message))
+            .withMessage("Cannot handle AuthenticationSASL message");
     }
 
 }

@@ -17,9 +17,11 @@
 package io.r2dbc.kingbase;
 
 import io.r2dbc.postgresql.PostgresqlConnectionConfiguration;
+import io.r2dbc.postgresql.client.SSLMode;
 import io.r2dbc.postgresql.util.Assert;
 import javax.annotation.Nullable;
 
+import java.net.URL;
 import java.time.Duration;
 
 /**
@@ -126,6 +128,51 @@ public final class KingbaseConnectionConfiguration {
 
         public Builder applicationName(String applicationName) {
             this.delegate.applicationName(applicationName);
+            return this;
+        }
+
+        public Builder socket(String socket) {
+            this.delegate.socket(socket);
+            return this;
+        }
+
+        public Builder sslMode(SSLMode sslMode) {
+            this.delegate.sslMode(sslMode);
+            return this;
+        }
+
+        public Builder sslCert(String sslCert) {
+            this.delegate.sslCert(sslCert);
+            return this;
+        }
+
+        public Builder sslCert(URL sslCert) {
+            this.delegate.sslCert(sslCert);
+            return this;
+        }
+
+        public Builder sslKey(String sslKey) {
+            this.delegate.sslKey(sslKey);
+            return this;
+        }
+
+        public Builder sslKey(URL sslKey) {
+            this.delegate.sslKey(sslKey);
+            return this;
+        }
+
+        public Builder sslPassword(@Nullable CharSequence sslPassword) {
+            this.delegate.sslPassword(sslPassword);
+            return this;
+        }
+
+        public Builder sslRootCert(String sslRootCert) {
+            this.delegate.sslRootCert(sslRootCert);
+            return this;
+        }
+
+        public Builder sslRootCert(URL sslRootCert) {
+            this.delegate.sslRootCert(sslRootCert);
             return this;
         }
 

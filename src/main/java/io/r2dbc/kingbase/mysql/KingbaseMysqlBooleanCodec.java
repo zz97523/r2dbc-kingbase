@@ -20,6 +20,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.client.EncodedParameter;
 import io.r2dbc.postgresql.codec.Codec;
+import io.r2dbc.postgresql.codec.CodecMetadata;
+import io.r2dbc.postgresql.codec.PostgresTypeIdentifier;
 import io.r2dbc.postgresql.codec.PostgresqlObjectId;
 import io.r2dbc.postgresql.message.Format;
 import io.r2dbc.postgresql.util.Assert;
@@ -28,6 +30,7 @@ import javax.annotation.Nullable;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -50,7 +53,7 @@ import static io.r2dbc.postgresql.message.Format.FORMAT_TEXT;
  * Encodes as text {@code "1"}/{@code "0"} with OID {@code int2} (TINYINT stand-in on the PG wire).
  * Decodes numeric/text as nonzero → {@code true} (r2dbc-mysql text: {@code != '0'}).
  */
-final class KingbaseMysqlBooleanCodec implements Codec<Boolean> {
+final class KingbaseMysqlBooleanCodec implements Codec<Boolean>, CodecMetadata {
 
     private static final Set<PostgresqlObjectId> DECODE_TYPES = EnumSet.of(
         BOOL, INT2, INT4, INT8, NUMERIC, TEXT, VARCHAR, BPCHAR
@@ -67,6 +70,16 @@ final class KingbaseMysqlBooleanCodec implements Codec<Boolean> {
     KingbaseMysqlBooleanCodec(ByteBufAllocator allocator, KingbaseMysqlTypeOids typeOids) {
         this.allocator = Assert.requireNonNull(allocator, "allocator must not be null");
         this.typeOids = Assert.requireNonNull(typeOids, "typeOids must not be null");
+    }
+
+    @Override
+    public Class<?> type() {
+        return Boolean.class;
+    }
+
+    @Override
+    public Iterable<PostgresTypeIdentifier> getDataTypes() {
+        return Collections.singleton((PostgresTypeIdentifier) () -> this.typeOids.encodeBoolean());
     }
 
     @Override

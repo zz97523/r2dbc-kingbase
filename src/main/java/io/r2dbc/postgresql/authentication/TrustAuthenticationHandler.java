@@ -17,6 +17,7 @@
 package io.r2dbc.postgresql.authentication;
 
 import io.r2dbc.postgresql.message.backend.AuthenticationMessage;
+import io.r2dbc.postgresql.message.backend.AuthenticationOk;
 import io.r2dbc.postgresql.message.frontend.FrontendMessage;
 import io.r2dbc.postgresql.util.Assert;
 import reactor.util.annotation.Nullable;
@@ -34,11 +35,30 @@ public final class TrustAuthenticationHandler implements AuthenticationHandler {
     private TrustAuthenticationHandler() {
     }
 
+    /**
+     * Returns whether this handler can process an authentication message that
+     * does not require a client response. KingbaseES uses this protocol result
+     * for trust, ident and peer authentication, and after successful SSL
+     * client certificate authentication.
+     *
+     * @param message the message to inspect
+     * @return {@code true} if the server has completed authentication
+     */
+    public static boolean supports(AuthenticationMessage message) {
+        Assert.requireNonNull(message, "message must not be null");
+        return message instanceof AuthenticationOk;
+    }
+
     @Override
+    @Nullable
     public FrontendMessage handle(@Nullable AuthenticationMessage message) {
         Assert.requireNonNull(message, "message must not be null");
 
-        throw new IllegalArgumentException("Trust does not require a response");
+        if (message instanceof AuthenticationOk) {
+            return null;
+        }
+
+        throw new IllegalArgumentException(String.format("Cannot handle %s message", message.getClass().getSimpleName()));
     }
 
 }

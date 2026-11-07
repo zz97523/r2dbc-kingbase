@@ -66,6 +66,11 @@ public final class StartupMessageFlow {
         return client.exchange(requests.asFlux().startWith(new StartupMessage(applicationName, database, username, options)))
             .handle((message, sink) -> {
                 if (message instanceof AuthenticationOk) {
+                    if (authenticationHandler.get() == null) {
+                        AuthenticationHandler handler = authenticationHandlerProvider.apply((AuthenticationOk) message);
+                        handler.handle((AuthenticationOk) message);
+                        authenticationHandler.compareAndSet(null, handler);
+                    }
                     requests.emitComplete(Sinks.EmitFailureHandler.FAIL_FAST);
                 } else if (message instanceof AuthenticationMessage) {
                     try {

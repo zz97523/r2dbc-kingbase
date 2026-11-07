@@ -376,6 +376,14 @@ final class KingbaseMysqlTextBinaryCodecs {
         }
 
         @Override
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Arrays.asList(
+                (PostgresTypeIdentifier) () -> this.typeOids.encodeBinary(),
+                BYTEA
+            );
+        }
+
+        @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
             return type == byte[].class
                 && this.typeOids.canDecodeTextExtension(dataType, format,
@@ -427,6 +435,14 @@ final class KingbaseMysqlTextBinaryCodecs {
         ByteBufferCodec(ByteBufAllocator allocator, KingbaseMysqlTypeOids typeOids) {
             super(allocator, ByteBuffer.class, KingbaseMysqlType.BLOB, typeOids);
             this.delegate = new ByteArrayCodec(allocator, typeOids);
+        }
+
+        @Override
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Arrays.asList(
+                (PostgresTypeIdentifier) () -> this.typeOids.encodeBinary(),
+                BYTEA
+            );
         }
 
         @Override

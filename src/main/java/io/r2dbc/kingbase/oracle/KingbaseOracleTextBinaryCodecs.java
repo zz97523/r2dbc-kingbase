@@ -157,6 +157,11 @@ final class KingbaseOracleTextBinaryCodecs {
         }
 
         @Override
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Arrays.asList(() -> this.typeOids.encodeBinary(), BYTEA);
+        }
+
+        @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
             return type == byte[].class
                 && this.typeOids.canDecodeTextExtension(dataType, format,
@@ -238,7 +243,15 @@ final class KingbaseOracleTextBinaryCodecs {
         }
 
         @Override
+        public Iterable<PostgresTypeIdentifier> getDataTypes() {
+            return Arrays.asList(() -> this.typeOids.encodeBinary(), BYTEA);
+        }
+
+        @Override
         public boolean canDecode(int dataType, Format format, Class<?> type) {
+            if (type == Object.class) {
+                return this.typeOids.isBinary(dataType) || KingbaseOracleTypeOids.equalsPg(dataType, BYTEA);
+            }
             return type == ByteBuffer.class && this.delegate.canDecode(dataType, format, byte[].class);
         }
 

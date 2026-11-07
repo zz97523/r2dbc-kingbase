@@ -20,11 +20,9 @@ import io.netty.buffer.ByteBufAllocator;
 import io.r2dbc.postgresql.api.PostgresqlConnection;
 import io.r2dbc.postgresql.codec.Codec;
 import io.r2dbc.postgresql.codec.CodecRegistry;
+import io.r2dbc.postgresql.codec.DefaultCodecs;
 import io.r2dbc.postgresql.extension.CodecRegistrar;
 import org.reactivestreams.Publisher;
-import reactor.core.publisher.Mono;
-
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -40,36 +38,15 @@ public final class KingbaseSqlServerCodecRegistrar implements CodecRegistrar {
     public Publisher<Void> register(PostgresqlConnection connection, ByteBufAllocator allocator, CodecRegistry registry) {
         return KingbaseSqlServerTypeOids.load(connection)
             .doOnNext(typeOids -> {
+                if (registry instanceof DefaultCodecs) {
+                    ((DefaultCodecs) registry).setR2dbcTypeMapper(typeOids::r2dbcType);
+                }
                 List<Codec<?>> codecs = KingbaseSqlServerCodecs.create(allocator, typeOids);
-                List<Codec<?>> preferred = new ArrayList<>();
-                List<Codec<?>> others = new ArrayList<>();
-                for (Codec<?> codec : codecs) {
-                    if (isPreferred(codec)) {
-                        preferred.add(codec);
-                    } else {
-                        others.add(codec);
-                    }
-                }
-                for (int i = others.size() - 1; i >= 0; i--) {
-                    registry.addFirst(others.get(i));
-                }
-                // Register preferred codecs last so CachedCodecLookup warms Java types before stock PG codecs.
-                for (int i = preferred.size() - 1; i >= 0; i--) {
-                    registry.addFirst(preferred.get(i));
+                for (int i = codecs.size() - 1; i >= 0; i--) {
+                    registry.addFirst(codecs.get(i));
                 }
             })
             .then();
-    }
-
-    private static boolean isPreferred(Codec<?> codec) {
-        return codec instanceof KingbaseSqlServerBooleanCodec
-            || codec instanceof KingbaseSqlServerTextBinaryCodecs.StringCodec
-            || codec instanceof KingbaseSqlServerTemporalCodecs.LocalDateCodec
-            || codec instanceof KingbaseSqlServerTemporalCodecs.LocalDateTimeCodec
-            || codec instanceof KingbaseSqlServerTemporalCodecs.LocalTimeCodec
-            || codec instanceof KingbaseSqlServerLobCodecs.BlobCodec
-            || codec instanceof KingbaseSqlServerTextBinaryCodecs.ByteArrayCodec
-            || codec instanceof KingbaseSqlServerTextBinaryCodecs.ByteBufferCodec;
     }
 
 }

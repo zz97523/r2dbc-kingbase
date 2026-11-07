@@ -19,6 +19,7 @@ package io.r2dbc.postgresql;
 import com.ongres.scram.client.ScramClient;
 import io.r2dbc.postgresql.client.Client;
 import io.r2dbc.postgresql.client.TestClient;
+import io.r2dbc.postgresql.message.backend.AuthenticationCleartextPassword;
 import io.r2dbc.postgresql.message.backend.AuthenticationMD5Password;
 import io.r2dbc.postgresql.message.backend.AuthenticationOk;
 import io.r2dbc.postgresql.message.backend.AuthenticationSASL;
@@ -29,6 +30,8 @@ import io.r2dbc.postgresql.message.frontend.StartupMessage;
 import io.r2dbc.postgresql.util.ByteBufferUtils;
 import io.r2dbc.spi.R2dbcNonTransientResourceException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -78,6 +81,59 @@ final class PostgresqlConnectionFactoryUnitTests {
             .host("test-host")
             .username("test-username")
             .password("test-password")
+            .build();
+
+        new PostgresqlConnectionFactory(c -> Mono.just(client), configuration)
+            .create()
+            .as(StepVerifier::create)
+            .expectNextCount(1)
+            .verifyComplete();
+    }
+
+    @ParameterizedTest(name = "{0} authentication uses the clear-text password protocol exchange")
+    @ValueSource(strings = {"LDAP", "RADIUS", "PAM", "BSD"})
+    void createExternalPasswordAuthentication(String authenticationMethod) {
+        // KingbaseES performs the external validation. The frontend protocol is
+        // the same clear-text password request for all four methods.
+        // @formatter:off
+        Client client = TestClient.builder()
+            .window()
+                .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", Collections.emptyMap())).thenRespond(AuthenticationCleartextPassword.INSTANCE)
+                .expectRequest(new PasswordMessage("test-password")).thenRespond(AuthenticationOk.INSTANCE)
+                .done()
+            .build();
+        // @formatter:on
+
+        PostgresqlConnectionConfiguration configuration = PostgresqlConnectionConfiguration.builder()
+            .applicationName("test-application-name")
+            .database("test-database")
+            .host("test-host")
+            .username("test-username")
+            .password("test-password")
+            .build();
+
+        new PostgresqlConnectionFactory(c -> Mono.just(client), configuration)
+            .create()
+            .as(StepVerifier::create)
+            .expectNextCount(1)
+            .verifyComplete();
+    }
+
+    @ParameterizedTest(name = "{0} authentication completes without a frontend authentication response")
+    @ValueSource(strings = {"trust", "ident", "peer", "cert"})
+    void createServerVerifiedAuthentication(String authenticationMethod) {
+        // trust, ident and peer are verified by KingbaseES. Certificate
+        // authentication is completed during the SSL handshake. All four
+        // paths therefore reach the frontend protocol as AuthenticationOk.
+        Client client = TestClient.builder()
+            .expectRequest(new StartupMessage("test-application-name", "test-database", "test-username", Collections.emptyMap())).thenRespond(AuthenticationOk.INSTANCE)
+            .build();
+
+        PostgresqlConnectionConfiguration configuration = PostgresqlConnectionConfiguration.builder()
+            .applicationName("test-application-name")
+            .database("test-database")
+            .host("test-host")
+            .username("test-username")
             .build();
 
         new PostgresqlConnectionFactory(c -> Mono.just(client), configuration)

@@ -29,6 +29,7 @@ import io.r2dbc.postgresql.authentication.AuthenticationHandler;
 import io.r2dbc.postgresql.authentication.MacAddressAuthenticationHandler;
 import io.r2dbc.postgresql.authentication.PasswordAuthenticationHandler;
 import io.r2dbc.postgresql.authentication.SASLAuthenticationHandler;
+import io.r2dbc.postgresql.authentication.TrustAuthenticationHandler;
 import io.r2dbc.postgresql.client.Client;
 import io.r2dbc.postgresql.client.ConnectionSettings;
 import io.r2dbc.postgresql.client.ReactorNettyClient;
@@ -288,7 +289,9 @@ public final class PostgresqlConnectionFactory implements ConnectionFactory {
     }
 
     private AuthenticationHandler getAuthenticationHandler(AuthenticationMessage message) {
-        if (MacAddressAuthenticationHandler.supports(message)) {
+        if (TrustAuthenticationHandler.supports(message)) {
+            return TrustAuthenticationHandler.INSTANCE;
+        } else if (MacAddressAuthenticationHandler.supports(message)) {
             return new MacAddressAuthenticationHandler();
         } else if (PasswordAuthenticationHandler.supports(message)) {
             CharSequence password = Assert.requireNonNull(this.configuration.getPassword(), "Password must not be null");

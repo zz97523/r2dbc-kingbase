@@ -195,7 +195,7 @@ Flux<Notification> listen = receiver.createStatement("LISTEN mymessage")
         .execute()
         .flatMap(PostgresqlResult::getRowsUpdated)
         .then();
-```
+```                                                                                                                       
 
 Upon subscription, the first connection enters listen mode and publishes incoming `Notification`s as `Flux`. The second connection broadcasts a notification to the `mymessage` channel upon
 subscription.
@@ -402,7 +402,7 @@ When available, the driver registers also an array variant of the codec.
 
 This reference table shows the type mapping between [PostgreSQL][p] and Java data types:
 
-| PostgreSQL Type                                 | Supported Data Type                                                                                                                           |
+| PostgreSQL Type                                 | Supported Data Type                                                                                                                           | 
 |:------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------|
 | [`bigint`][psql-bigint-ref]                     | [**`Long`**][java-long-ref], [`Boolean`][java-boolean-ref], [`Byte`][java-byte-ref], [`Short`][java-short-ref], [`Integer`][java-integer-ref], [`BigDecimal`][java-bigdecimal-ref], [`BigInteger`][java-biginteger-ref] |
 | [`bit`][psql-bit-ref]                           | Not yet supported.|
